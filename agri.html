@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="assets/css/all.min.css">
+    <link rel="shortcut icon" href="images/Pulsar Icon.jpeg" type="image/x-icon">
+    <link rel="stylesheet" href="form.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module Agricole — Pulsar Eco Group</title>
+</head>
+<body>
+    <header><img id="logo" src="images/Pulsar Icon.jpeg" alt=""></header>
+    <form onsubmit="event.preventDefault();">
+        <h1>Pompage Solaire Agricole et Irrigation</h1>
+        <section class="formulaire">
+            <h2>Localisation &amp; Données agricoles</h2>
+            <div id="ville-container"></div>
+            <label>Surface à irriguer (ha)</label>
+            <input type="number" id="surface" step="0.1" min="0" required onchange="verifierFormulaire()">
+            <label>Type de culture</label>
+            <select id="culture" onchange="verifierFormulaire()">
+                <option value="5">Maïs</option>
+                <option value="6">Riz</option>
+                <option value="4">Tomate</option>
+                <option value="3">Oignon</option>
+            </select>
+            <label>Rendement irrigation</label>
+            <select id="efficiency">
+                <option value="0.9">Goutte-à-goutte (90%)</option>
+                <option value="0.75">Aspersion (75%)</option>
+                <option value="0.6">Gravitaire (60%)</option>
+            </select>
+        </section>
+        <section class="formulaire">
+            <h2>Données hydrauliques</h2>
+            <label>Profondeur dynamique (m)</label>
+            <input type="number" id="depth" min="0" required onchange="verifierFormulaire()">
+            <label>Hauteur réservoir (m)</label>
+            <input type="number" id="tankHeight" min="0" required onchange="verifierFormulaire()">
+            <label>Heures de pompage / jour</label>
+            <input type="number" id="hours" value="6" min="1" max="24" required onchange="verifierFormulaire()">
+        </section>
+        <section class="formulaire">
+            <h2>Paramètres solaires</h2>
+            <label>Heures solaires utiles — mis à jour selon la ville</label>
+            <input type="number" id="psh" value="5.2" min="1" step="0.1" required onchange="verifierFormulaire()">
+            <label>Puissance panneau (W)</label>
+            <input type="number" id="panelPower" value="550" min="100" required>
+        </section>
+        <button class="calc-btn" type="button" onclick="calculer()">Calculer le système</button>
+        <div id="results" class="resultat"></div>
+        <br>
+        <button class="valider-btn" id="btn-valider" type="button" onclick="validerEtAnalyser()" disabled>
+            ✅ Valider &amp; Lancer l'Analyse IA
+        </button>
+        <div id="ia-results" style="margin-top:20px;"></div>
+        <br>
+        <button class="pdf-btn" type="button" onclick="generatePDF()">Télécharger le devis en PDF</button>
+    </form>
+    <footer>
+        <section>
+            <h3>Contactez - Nous</h3>
+            <div class="contact">
+                <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook -|-</a>
+                <a href="https://wa.me/22892196727" target="_blank"><i class="fa-brands fa-whatsapp"></i> Whatsapp -|-</a>
+                <a href="tel:+22892196727"><i class="fa-solid fa-phone"></i> Téléphone 1</a>
+                <a href="tel:+22890104393"><i class="fa-solid fa-phone"></i> Téléphone 2</a>
+                <a href="tel:+22893775800"><i class="fa-solid fa-phone"></i> Téléphone 3</a>
+            </div>
+        </section>
+        <hr>
+        <small><span>P</span>ulsar <span>E</span>co <span>G</span>roup</small>
+        <small>Tous droits réservés - 2026</small>
+    </footer>
+    <script src="ville-data.js"></script>
+    <script src="ville-input.js"></script>
+    <script src="ai-engine.js"></script>
+    <script src="agri.js"></script>
+    <script>creerChampVille('ville-container');</script>
+</body>
+</html>

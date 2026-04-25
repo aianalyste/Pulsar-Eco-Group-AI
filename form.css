@@ -1,0 +1,159 @@
+body {
+    max-width: 100%;
+    min-width: 50%;
+    font-family: Arial;
+    background: #ffffff;
+    background-image: url("images/panneau1.jpg");
+    background-size: cover;
+    background-position: center;
+}
+
+header{
+    text-align: center;
+}
+
+#logo{
+    width: 100px;
+    height: 100px;
+    border-radius: 20px;
+}
+
+h1 {
+    text-align: center;
+    text-decoration: underline;
+}
+
+form {
+    max-width: 80%;
+    margin: auto;
+    background: aliceblue;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    color: black;
+}
+
+.formulaire {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #eef5ee;
+    border-radius: 8px;
+}
+
+label {
+    text-align: center;
+    display: block;
+    margin-top: 15px;
+}
+
+input,select {
+    width: 90%;
+    padding: 8px;
+    margin: 5px;
+}
+
+#calcBtn {
+    width: 100%;
+    padding: 15px;
+    background: rgb(1, 109, 6);
+    color: antiquewhite;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#button{
+    padding:10px 15px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+    transition: transform 0.2s;
+}
+#button:hover{
+    transform: translateY(5px);
+    box-shadow: 0 10px 20px rgba(0, 168, 107, 0.25);
+}
+
+.add-btn{
+    background:#27ae60;
+    color:white;
+}
+.del-btn{
+    color: rgb(185, 41, 41);
+    font-weight: bold;
+    background: aliceblue;
+    border: aliceblue;
+}
+.calc-btn{
+    background:#0a192f;
+    color:white;
+}
+.pdf-btn{
+    background:#27ae60;
+    color:white;
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+th, td{
+    border:1px solid #ddd;
+    padding:8px;
+    text-align:center;
+}
+th{
+    background:#2980b9;
+    color:white;
+}
+
+.resultat {
+    width: 94%;
+    margin-top: 20px;
+    color: #012518;
+    padding: 15px;
+    margin-left: 10px;
+    border-radius: 5px;
+}
+
+span{
+    color: #0a192f;
+}
+
+.contact a{
+    text-decoration: none;
+    color: #000000;
+}
+.fa-facebook{
+    color: blue;
+}
+.fa-whatsapp{
+    color: green;
+}
+i{
+    color: black;
+    font-size: 25px;
+}
+
+section h3{
+    text-decoration: underline;
+}
+footer{
+    margin: 10px;
+    justify-content: space-between;
+    padding: 14px 18px;
+    font-size: 18px;
+    text-align: center;
+    background: linear-gradient(-45deg, #629ce7, #06b455, #2e7d32, #0a192f);
+    background-size: 400% 400%;
+    animation: gradientMove 4s ease infinite;
+}
+
+@keyframes gradientMove {
+    0% { background-position: 0% 50%;}
+    50% { background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+}
+
+footer small{opacity: 0.9;}

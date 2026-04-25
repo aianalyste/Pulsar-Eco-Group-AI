@@ -1,0 +1,142 @@
+body{
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    background: #f1f1f0;
+}
+
+main{
+    padding: 20px;
+}
+h3{
+    text-align: center;
+    position: relative;
+}
+#logo{
+    width: 100px;
+    height: 100px;
+    border-radius: 20px;
+}
+
+header h1{
+    color: #2e7d32;
+    font-size: 50px;
+    font-weight: bold;
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+}
+
+header p{
+    font-weight: bold;
+}
+
+header{
+    padding-top: 23px;
+    position: sticky;
+    z-index: 100;
+    top: 0;
+    overflow: hidden;
+    color: #0a192f;
+    text-align: center;
+}
+header::before{
+    background-image: url('images/panneau1.jpg');
+    background-size: cover;
+    background-position: center;
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 120%;
+    height: 100%;
+    animation: glissement 5s linear infinite alternate;
+    /*filter: blur(2px);*/
+    z-index: -1;
+}
+
+.cards{
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 40px;
+    flex-wrap: wrap;
+}
+.cards h2{
+    color: rgb(1, 41, 1);
+}
+
+.card{
+    background: #f0f8ff;
+    width: 260px;
+    padding: 25px;
+    text-align: center;
+    text-decoration: none;
+    color: #000000;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover{
+    transform: translateY(-5px);
+    color: #0a192f;
+}
+
+.card h2{
+    margin: 15px 0 5px;
+}
+
+span{
+    color: #0a192f;
+}
+
+.contact a{
+    text-decoration: none;
+    color: #000000;
+}
+.fa-facebook{
+    color: blue;
+}
+.fa-whatsapp{
+    color: green;
+}
+i{
+    color: black;
+    font-size: 25px;
+}
+
+section h3{
+    text-decoration: underline;
+}
+footer{
+    margin: 10px;
+    justify-content: space-between;
+    padding: 14px 18px;
+    font-size: 18px;
+    text-align: center;
+    background: linear-gradient(-45deg, #629ce7, #06b455, #2e7d32, #0a192f);
+    background-size: 400% 400%;
+    animation: gradientMove 4s ease infinite;
+}
+
+@keyframes gradientMove {
+    0% { background-position: 0% 50%;}
+    50% { background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+}
+footer small{opacity: 0.9;}
+
+@keyframes glissement {
+    from { transform: translateX(0);}
+    100% {transform: translateX(-15%);}
+}
+
+@media (max-width: 100%){
+    footer{
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+@media (max-width: 100%) {
+    header {
+        flex-direction: column;
+    }            
+}

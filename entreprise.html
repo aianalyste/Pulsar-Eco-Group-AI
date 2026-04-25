@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="assets/css/all.min.css">
+    <link rel="stylesheet" href="form.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="images/Pulsar Icon.jpeg" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <title>Entreprises &amp; Institutions — Pulsar Eco Group</title>
+</head>
+<body>
+    <header><img id="logo" src="images/Pulsar Icon.jpeg" alt=""></header>
+    <form onsubmit="event.preventDefault();">
+        <div class="container">
+            <h1>Module Entreprises &amp; Institutions</h1>
+            <h3>Inventaire des équipements</h3>
+            <table id="equipmentTable">
+                <tr>
+                    <th>Nom de l'appareil</th><th>Puissance (W)</th>
+                    <th>Quantité</th><th>Heures/Jour</th><th>Action</th>
+                </tr>
+            </table>
+            <button class="add-btn" type="button" onclick="addRow()">+ Ajouter un équipement</button>
+            <hr>
+            <h3>Localisation &amp; Paramètres</h3>
+            <div id="ville-container"></div>
+            <label>Type d'installation :</label>
+            <select id="typeInstallation">
+                <option value="autonome">Autonome (avec batteries)</option>
+                <option value="hybride">Hybride (solaire + réseau)</option>
+                <option value="reseau">Raccordée réseau (sans batteries)</option>
+            </select>
+            <label>Budget disponible (FCFA) :</label>
+            <input type="number" id="budget" placeholder="Ex: 1 500 000">
+            <label>Heures Solaires Pleines (HSP) — mis à jour selon la ville :</label>
+            <input type="number" id="hsp" value="5.2" min="1" step="0.1" onchange="verifierFormulaire()">
+            <label>Rendement système :</label>
+            <input type="number" step="0.01" id="efficiency" value="0.75">
+            <br><br>
+            <button class="calc-btn" type="button" onclick="calculer()">Calculer Dimensionnement</button>
+            <div class="resultat" id="results"></div>
+            <br>
+            <button class="valider-btn" id="btn-valider" type="button" onclick="validerEtAnalyser()" disabled>
+                ✅ Valider &amp; Lancer l'Analyse IA
+            </button>
+            <div id="ia-results" style="margin-top:20px;"></div>
+            <br>
+            <button class="pdf-btn" type="button" onclick="generatePDF()">Télécharger Devis PDF</button>
+        </div>
+    </form>
+    <footer>
+        <section>
+            <h3>Contactez - Nous</h3>
+            <div class="contact">
+                <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook -|-</a>
+                <a href="https://wa.me/22892196727" target="_blank"><i class="fa-brands fa-whatsapp"></i> Whatsapp -|-</a>
+                <a href="tel:+22892196727"><i class="fa-solid fa-phone"></i> Téléphone 1</a>
+                <a href="tel:+22890104393"><i class="fa-solid fa-phone"></i> Téléphone 2</a>
+                <a href="tel:+22893775800"><i class="fa-solid fa-phone"></i> Téléphone 3</a>
+            </div>
+        </section>
+        <hr>
+        <small><span>P</span>ulsar <span>E</span>co <span>G</span>roup</small>
+        <small>Tous droits réservés - 2026</small>
+    </footer>
+    <script src="ville-data.js"></script>
+    <script src="ville-input.js"></script>
+    <script src="ai-engine.js"></script>
+    <script src="entre.js"></script>
+    <script>creerChampVille('ville-container');</script>
+</body>
+</html>
