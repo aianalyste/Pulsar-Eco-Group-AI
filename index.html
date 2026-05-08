@@ -1,35 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="fr">
 <head>
-    <link rel="stylesheet" href="assets/css/all.min.css">
-    <link rel="shortcut icon" href="images/Pulsar Icon.jpeg" type="image/x-icon">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" href="images/Pulsar Icon.jpeg" type="image/x-icon">
     <title>Pulsar Eco Group</title>
 </head>
-
 <body>
     <header>
         <img id="logo" src="images/Pulsar Icon.jpeg" alt="">
         <h1>Pulsar Eco Group</h1>
-        <h2>Plateforme Intelligente qui simplifie l'accès à l'énergie solaire au Togo grâce à l'IA, qui automatise le dimensionnement,l'optimisation des installations pour démocratiser l'énergie propre.</h1>
-        <p>Accessible aux, agriculteurs, entreprises et ménages même sans savoir écrire</p>
+        <h2>Plateforme IA de Dimensionnement Solaire</h2>
+        <p>Ménages · Entreprises · Agriculture — Partout en Afrique</p>
     </header>
 
-    <h3>Bienvenue chez  <span>Pulsar Eco Group</span>, la solution à votre domicile.<br>
-        Veuillez choisir votre profil pour en bénéficier de nos offres.</h3>
+    <h3>Bienvenue — Choisissez votre profil</h3>
+
     <main class="cards">
-        <a href="agri.html" class="card" target="_parent">
+        <a href="agri.html" class="card" onclick="return garderAcces(event,'agri.html','Module Agricole')">
             <h2>🌱 Module Agricole</h2>
-            <p>Pompage solaire et irrigation</p>
+            <p>Pompage solaire &amp; irrigation</p>
         </a>
-        <a href="entreprise.html" class="card" target="_parent">
-            <h2>🏢 Entreprises & Institutions</h2>
-            <p>Ecoles, cliniques, PME</p>
+        <a href="entreprise.html" class="card" onclick="return garderAcces(event,'entreprise.html','Entreprises & Institutions')">
+            <h2>🏢 Entreprises &amp; Institutions</h2>
+            <p>Écoles, cliniques, PME, industries</p>
         </a>
-        <a href="menage.html" class="card" target="_parent">
+        <a href="menage.html" class="card" onclick="return garderAcces(event,'menage.html','Ménage')">
             <h2>🏡 Ménage</h2>
             <p>Installation domestique</p>
         </a>
@@ -37,19 +35,35 @@
 
     <footer>
         <section>
-            <h3>Contactez - Nous</h3>
+            <h3>Contactez-nous</h3>
             <div class="contact">
-                <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook -|-</a>
-                <a href="https://wa.me/22892196727?text=Bonjour%20,%20Je%20voudrais%20plus%20d%20'%20informations%20sur%20vos%20offres%20de%20services" target="_blank"><i class="fa-brands fa-whatsapp" target="_blank"></i> Whatsapp -|-</a>
-                <a href="tel:+22892196727" target="_blank"><i class="fa-solid fa-phone"></i> Téléphone 1</a>
-                <a href="tel:+22890104393" target="_blank"><i class="fa-solid fa-phone"></i> Téléphone 2</a>
-                <a href="tel:+22893775800" target="_blank"><i class="fa-solid fa-phone"></i> Téléphone 3</a>
+                <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook</a>
+                <a href="https://wa.me/22892196727" target="_blank"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+                <a href="tel:+22892196727"><i class="fa-solid fa-phone"></i> +228 92 19 67 27</a>
+                <a href="tel:+22890104393"><i class="fa-solid fa-phone"></i> +228 90 10 43 93</a>
+                <a href="tel:+22893775800"><i class="fa-solid fa-phone"></i> +228 93 77 58 00</a>
             </div>
         </section>
         <hr>
-        <small><span>P</span>ulsar <span>E</span>co <span>G</span>roup</small>
-        <small>&copy;Tous droits résevés - 2026</small>
+        <small><span>P</span>ulsar <span>E</span>co <span>G</span>roup © 2026</small>
     </footer>
-</body>
 
+    <script src="paiement.js"></script>
+    <script>
+    function garderAcces(e, url, nom) {
+        if (verifierAcces()) return true;
+        e.preventDefault();
+        sessionStorage.setItem('peg_dest', url);
+        afficherPageAbonnement(nom);
+        return false;
+    }
+    window.addEventListener('load', function() {
+        if (verifierAcces()) {
+            afficherBandeauUser();
+            var dest = sessionStorage.getItem('peg_dest');
+            if (dest) { sessionStorage.removeItem('peg_dest'); window.location.href = dest; }
+        }
+    });
+    </script>
+</body>
 </html>
