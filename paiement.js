@@ -35,18 +35,7 @@ var COMPTES_GRATUITS = [
 //  VÉRIFICATION ACCÈS
 // ================================================================
 function verifierAcces() {
-  // Vérifier compte gratuit en mémoire session
-  var free = sessionStorage.getItem('peg_free_access');
-  if (free === '1') return true;
-
-  var raw = localStorage.getItem('peg_user');
-  if (!raw) return false;
-  try {
-    var u = JSON.parse(raw);
-    if (u.gratuit) return true;
-    if (u.expiration && Date.now() < u.expiration) return true;
-  } catch(e) {}
-  return false;
+  return true; // Accès libre temporaire — FedaPay pas encore activé
 }
 
 function getInfoUser() {
