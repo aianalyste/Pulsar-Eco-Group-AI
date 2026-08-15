@@ -4,10 +4,10 @@
 // ================================================================
 
 // ===== CLÉS API FEDAPAY =====
-// MODE TEST (sandbox) — utiliser pour les tests
-var FEDAPAY_PUBLIC_KEY  = 'pk_sandbox_8xx1MmQ0UypP-74eMT1I7txl';
-var FEDAPAY_SECRET_KEY  = 'sk_sandbox_p24QxLvaCrZ5JH2baULA0Fry';
-var FEDAPAY_ENV         = 'sandbox'; // 'sandbox' ou 'live'
+// MODE Pratique (LIVE) — utiliser pour les tests
+var FEDAPAY_PUBLIC_KEY  = 'pk_live_CbugeP6iq5KXOaGORxXVh02d';
+var FEDAPAY_SECRET_KEY  = 'sk_live_CalAl4Tew3ZPCMxc-qs64FPv';
+var FEDAPAY_ENV         = 'live'; // 'sandbox' ou 'live'
 
 // MODE LIVE (production) — décommenter et remplacer quand prêt
 // var FEDAPAY_PUBLIC_KEY  = 'pk_live_VOTRE_CLE_PUBLIQUE_LIVE';
@@ -16,9 +16,9 @@ var FEDAPAY_ENV         = 'sandbox'; // 'sandbox' ou 'live'
 
 // ===== PLANS D'ABONNEMENT =====
 var PLANS = [
-  { id:'heure',   label:'1 Heure',   prix:500,    duree:1*60*60*1000,        emoji:'⏱️', desc:'Accès 1 heure' },
-  { id:'jour',    label:'1 Jour',    prix:1000,   duree:24*60*60*1000,       emoji:'📅', desc:'Accès 24 heures' },
-  { id:'semaine', label:'1 Semaine', prix:3000,   duree:7*24*60*60*1000,     emoji:'📆', desc:'Accès 7 jours' },
+  { id:'heure',   label:'1 Heure',   prix:1000,    duree:1*60*60*1000,        emoji:'⏱️', desc:'Accès 1 heure' },
+  { id:'jour',    label:'1 Jour',    prix:2000,   duree:24*60*60*1000,       emoji:'📅', desc:'Accès 24 heures' },
+  { id:'semaine', label:'1 Semaine', prix:5000,   duree:7*24*60*60*1000,     emoji:'📆', desc:'Accès 7 jours' },
   { id:'mois',    label:'1 Mois',    prix:15000,  duree:30*24*60*60*1000,    emoji:'🗓️', desc:'Accès 30 jours' },
   { id:'annee',   label:'1 An',      prix:100000, duree:365*24*60*60*1000,   emoji:'🏆', desc:'Accès 365 jours' }
 ];
@@ -27,15 +27,26 @@ var PLANS = [
 // Pour ajouter un utilisateur gratuit: { contact:'email_ou_tel', nom:'Nom' }
 var COMPTES_GRATUITS = [
   { contact: 'blanckombate93@gmail.com', nom: 'Admin Blanck' },
-  { contact: '92196727',                 nom: 'Frère Admin' },
-  { contact: '+22892196727',             nom: 'Frère Admin' }
+  // { contact: '92196727',                 nom: 'Frère Admin' },
+  // { contact: '+22892196727',             nom: 'Frère Admin' }
 ];
 
 // ================================================================
 //  VÉRIFICATION ACCÈS
 // ================================================================
 function verifierAcces() {
-  return true; // Accès libre temporaire — FedaPay pas encore activé
+  // Vérifier compte gratuit en mémoire session
+  var free = sessionStorage.getItem('peg_free_access');
+  if (free === '1') return true;
+
+  var raw = localStorage.getItem('peg_user');
+  if (!raw) return false;
+  try {
+    var u = JSON.parse(raw);
+    if (u.gratuit) return true;
+    if (u.expiration && Date.now() < u.expiration) return true;
+  } catch(e) {}
+  return false;
 }
 
 function getInfoUser() {
