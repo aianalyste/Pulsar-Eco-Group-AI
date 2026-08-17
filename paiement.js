@@ -27,8 +27,8 @@ var PLANS = [
 // Pour ajouter un utilisateur gratuit: { contact:'email_ou_tel', nom:'Nom' }
 var COMPTES_GRATUITS = [
   { contact: 'blanckombate93@gmail.com', nom: 'Admin Blanck' },
-  // { contact: '92196727',                 nom: 'Frère Admin' },
-  // { contact: '+22892196727',             nom: 'Frère Admin' }
+  { contact: '92196727',                 nom: 'Frère Admin' },
+  { contact: '+22892196727',             nom: 'Frère Admin' }
 ];
 
 // ================================================================
