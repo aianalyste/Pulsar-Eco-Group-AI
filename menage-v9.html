@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="assets/css/all.min.css">
+    <link rel="stylesheet" href="form.css">
+    <link rel="stylesheet" href="menage-v9.css">
+    <link rel="shortcut icon" href="images/Pulsar Icon.jpeg" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="ville-data.js"></script>
+    <script src="ville-input.js"></script>
+    <script src="paiement.js"></script>
+    <script src="guide.js"></script>
+    <script src="ai-engine-v9.js"></script>
+    <script src="scene3d-v9.js"></script>
+    <title>Ménage — Pulsar Eco Group AI</title>
+</head>
+<body>
+<header><img id="logo" src="images/Pulsar Icon.jpeg" alt="Pulsar Eco Group"></header>
+<form onsubmit="event.preventDefault();">
+    <h1>Module Domestique — Dimensionnement IA</h1>
+
+    <!-- Fil d'Ariane des 5 étapes -->
+    <div class="wizard-steps" id="wizard-steps">
+        <div class="w-step active" data-step="1">1. Ville &amp; Appareils</div>
+        <div class="w-step" data-step="2">2. Heures d'usage</div>
+        <div class="w-step" data-step="3">3. Panneaux</div>
+        <div class="w-step" data-step="4">4. Contrôleur &amp; Batteries</div>
+        <div class="w-step" data-step="5">5. Validation</div>
+    </div>
+
+    <!-- ============ ÉTAPE 1 : VILLE + TABLEAU APPAREILS ============ -->
+    <section class="w-panel" id="panel-1">
+        <div id="ville-container"></div>
+
+        <h3>Renseignement des appareils</h3>
+        <p class="w-hint">Indiquez le nom, la puissance unitaire et la quantité de chaque appareil. Le temps d'utilisation sera précisé à l'étape suivante en cochant les heures.</p>
+        <table id="equipmentTable" class="w-table">
+            <tr><th>Nom de l'appareil</th><th>Puissance unitaire (W)</th><th>Nombre / Quantité</th><th>Action</th></tr>
+        </table>
+        <button class="add-btn" type="button" onclick="addRow()">+ Ajouter un équipement</button>
+
+        <div class="w-nav">
+            <span></span>
+            <button class="w-btn-next" type="button" onclick="allerEtape(2)">Étape suivante →</button>
+        </div>
+    </section>
+
+    <!-- ============ ÉTAPE 2 : BANDE 24H PAR APPAREIL ============ -->
+    <section class="w-panel" id="panel-2" style="display:none;">
+        <h3>Heures d'utilisation de chaque appareil</h3>
+        <p class="w-hint">Cochez ✅ les heures (format 24h) pendant lesquelles chaque appareil fonctionne habituellement.</p>
+        <div id="bande24h-container"></div>
+
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(1)">← Retour</button>
+            <button class="w-btn-next valider-btn" type="button" onclick="lancerPredimensionnement()">⚡ Lancer le prédimensionnement</button>
+        </div>
+
+        <div id="predim-resultats"></div>
+        <div class="w-nav" id="nav-vers-3" style="display:none;">
+            <span></span>
+            <button class="w-btn-next" type="button" onclick="allerEtape(3)">Étape suivante : Choix des panneaux →</button>
+        </div>
+    </section>
+
+    <!-- ============ ÉTAPE 3 : CHOIX DES PANNEAUX ============ -->
+    <section class="w-panel" id="panel-3" style="display:none;">
+        <h3>Choisissez vos panneaux solaires</h3>
+        <div class="w-filtres" id="filtres-panneaux"></div>
+        <div id="tableau-panneaux"></div>
+
+        <button class="valider-btn" type="button" onclick="calculerNbPanneauxUI()">🔢 Calculer le nombre de panneaux nécessaire</button>
+        <div id="resultat-panneaux"></div>
+
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(2)">← Retour</button>
+            <button class="w-btn-next" id="btn-vers-4" type="button" onclick="allerEtape(4)" disabled>Étape suivante : Contrôleur &amp; Batteries →</button>
+        </div>
+    </section>
+
+    <!-- ============ ÉTAPE 4 : CONTRÔLEUR + BATTERIES ============ -->
+    <section class="w-panel" id="panel-4" style="display:none;">
+        <h3>Contrôleur de charge</h3>
+        <div class="w-radio-group" id="choix-controleur">
+            <label><input type="radio" name="controleur" value="MPPT" checked onchange="onControleurChange()"> MPPT (recommandé)</label>
+            <label><input type="radio" name="controleur" value="PWM" onchange="onControleurChange()"> PWM</label>
+        </div>
+        <div id="alerte-pwm" style="display:none;" class="w-alerte">⚠️ En PWM, le surplus de tension est perdu. Le MPPT est recommandé pour limiter le nombre de séries de panneaux.</div>
+        <label>Tension max d'entrée du régulateur MPPT (V) :
+            <input type="number" id="vmax-mppt" value="150" min="12" oninput="onControleurChange()">
+        </label>
+        <div id="resultat-paralleles"></div>
+
+        <h3>Choisissez vos batteries</h3>
+        <div class="w-filtres" id="filtres-batteries"></div>
+        <div id="tableau-batteries"></div>
+
+        <label>Jours d'autonomie souhaités :
+            <input type="number" id="jours-autonomie" value="1" min="0.5" step="0.5">
+        </label>
+
+        <button class="valider-btn" type="button" onclick="calculerNbBatteriesUI()">🔋 Calculer le nombre de batteries</button>
+        <div id="resultat-batteries"></div>
+
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(3)">← Retour</button>
+            <button class="w-btn-next" id="btn-vers-5" type="button" onclick="allerEtape(5)" disabled>Étape suivante : Validation →</button>
+        </div>
+    </section>
+
+    <!-- ============ ÉTAPE 5 : VALIDATION + ANALYSE IA ============ -->
+    <section class="w-panel" id="panel-5" style="display:none;">
+        <h3>Logo de votre installation (optionnel)</h3>
+        <p class="w-hint">Ajoutez votre logo pour personnaliser le rapport PDF, sinon le logo Pulsar Eco Group sera utilisé.</p>
+        <input type="file" id="logo-client" accept="image/*" onchange="onLogoChange(event)">
+        <div id="logo-apercu"></div>
+
+        <button class="valider-btn" id="btn-valider-final" type="button" onclick="validerEtLancerAnalyseIA()">
+            ✅ VALIDER ET LANCER L'ANALYSE IA
+        </button>
+
+        <div id="ia-results" style="margin-top:20px;"></div>
+        <br>
+        <button class="pdf-btn" id="btn-pdf" type="button" onclick="genererPDF()" style="display:none;">📄 Télécharger le rapport PDF</button>
+
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(4)">← Retour</button>
+            <span></span>
+        </div>
+    </section>
+
+</form>
+<footer>
+        <section><h3>Contactez-nous</h3>
+            <div class="contact">
+                <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook</a>
+                <a href="https://wa.me/22892196727" target="_blank"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+                <a href="tel:+22892196727"><i class="fa-solid fa-phone"></i> +228 92 19 67 27</a>
+                <a href="tel:+22890104393"><i class="fa-solid fa-phone"></i> +228 90 10 43 93</a>
+            </div>
+        </section>
+        <hr>
+        <small><span>P</span>ulsar <span>E</span>co <span>G</span>roup © 2026</small>
+    </footer>
+<script src="menage-v9.js"></script>
+<script>
+    if (!verifierAcces()) {
+        afficherPageAbonnement('Ménage');
+    } else {
+        afficherBandeauUser();
+        creerChampVille('ville-container');
+        addRow(); // une première ligne d'appareil pour démarrer
+    }
+</script>
+</body>
+</html>
