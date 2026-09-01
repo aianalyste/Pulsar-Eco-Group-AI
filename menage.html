@@ -5,70 +5,236 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="form.css">
+    <link rel="stylesheet" href="wizard.css">
     <link rel="shortcut icon" href="images/Pulsar Icon.jpeg" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="ville-data.js"></script>
     <script src="ville-input.js"></script>
     <script src="paiement.js"></script>
     <script src="guide.js"></script>
-    <script src="ai-engine.js"></script>
-    <title>Ménage — Pulsar Eco Group</title>
+    <script src="coeff-demarrage.js"></script>
+    <script src="catalogues.js"></script>
+    <script src="moteur.js"></script>
+    <script src="scene3d.js"></script>
+    <script src="rapport.js"></script>
+    <script src="comptes.js"></script>
+    <script src="lecture-fiche.js"></script>
+    <title>Ménage — Pulsar Eco Group AI</title>
 </head>
 <body>
 <header><img id="logo" src="images/Pulsar Icon.jpeg" alt="Pulsar Eco Group"></header>
-<form onsubmit="event.preventDefault();">
-    <h1>Module Domestique</h1>
 
-    <!-- Bandeau guide -->
-    <div style="background:#fff3e0;border:1.5px solid #ff9800;border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <span style="font-size:.88rem;color:#e65100;"><strong>📌 Comment utiliser :</strong> Entrez votre ville → Ajoutez vos appareils → Validez !</span>
-        <button type="button" onclick="lancerGuide('menage')" style="background:#e65100;color:#fff;border:none;padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:600;">👆 Guide interactif</button>
+<!-- ============ AUTHENTIFICATION ============ -->
+<div id="ecran-auth">
+  <div class="auth-box">
+    <h2 style="text-align:center;color:#0d2244;">Ménage</h2>
+    <p class="w-hint" style="text-align:center;">Connectez-vous ou créez un compte pour accéder à vos projets.</p>
+    <input type="email" id="auth-email" placeholder="Adresse email">
+    <input type="password" id="auth-mdp" placeholder="Mot de passe (6 caractères min.)">
+    <button class="auth-btn-primary" type="button" onclick="soumettreAuth('connexion')">Se connecter</button>
+    <button class="auth-btn-secondary" type="button" onclick="soumettreAuth('inscription')">Créer un compte</button>
+    <div class="auth-message" id="auth-message"></div>
+  </div>
+</div>
+
+<!-- ============ MES PROJETS ============ -->
+<div id="ecran-mesprojets" style="display:none; max-width:900px; margin:0 auto; padding:20px;">
+  <div class="mp-header">
+    <h2 style="color:#0d2244;">Mes Projets <span class="w-hint" id="mp-email"></span></h2>
+    <button class="w-btn-back" type="button" onclick="deconnexion()">Déconnexion</button>
+  </div>
+  <div id="liste-projets"></div>
+  <div class="nouveau-projet-box">
+    <div style="flex:1;min-width:180px;">
+      <label style="font-size:.8rem;font-weight:600;">Nom du projet</label>
+      <input type="text" id="nouveau-projet-nom" placeholder="Ex: Ferme Kossi">
+    </div>
+    <div>
+      <label style="font-size:.8rem;font-weight:600;">Type</label>
+      <select id="nouveau-projet-type">
+        <option>Ménage</option>
+      </select>
+    </div>
+    <button class="valider-btn" style="width:auto;padding:11px 20px;" type="button" onclick="creerNouveauProjet()">+ Nouveau projet</button>
+  </div>
+</div>
+
+<!-- ============ WIZARD ============ -->
+<div id="ecran-wizard" style="display:none;">
+<form onsubmit="event.preventDefault();">
+    <h1 id="titre-wizard">Ménage</h1>
+
+    <div class="wizard-steps">
+        <div class="w-step active" data-step="1">1. Ville &amp; Appareils</div>
+        <div class="w-step" data-step="2">2. Heures</div>
+        <div class="w-step" data-step="3">3. Panneaux</div>
+        <div class="w-step" data-step="4">4. Onduleur</div>
+        <div class="w-step" data-step="5">5. Batteries</div>
+        <div class="w-step" data-step="6">6. Validation</div>
     </div>
 
-    <div id="ville-container"></div>
+    <!-- ÉTAPE 1 -->
+    <section class="w-panel" id="panel-1">
+        <div id="ville-container"></div>
+        <h3>Renseignement des appareils</h3>
+        <p class="w-hint">Indiquez le nom, la puissance unitaire, la quantité et le temps d'utilisation quotidien de chaque appareil.</p>
+        <table id="equipmentTable" class="w-table">
+            <tr><th>Nom de l'appareil</th><th>Puissance unitaire (W)</th><th>Nombre</th><th>Temps d'utilisation (h)</th><th>Action</th></tr>
+        </table>
+        <button class="add-btn" type="button" onclick="addRow()">+ Ajouter un équipement</button>
+        <div class="w-nav"><span></span><button class="w-btn-next" type="button" onclick="allerEtape(2)">Étape suivante →</button></div>
+    </section>
 
-    <h3>Inventaire des équipements</h3>
-    <table id="equipmentTable">
-        <tr><th>Nom de l'appareil</th><th>Puissance (W)</th><th>Quantité</th><th>Heures/Jour</th><th>Action</th></tr>
-    </table>
-    <button class="add-btn" type="button" onclick="addRow()">+ Ajouter un équipement</button>
-    <hr>
+    <!-- ÉTAPE 2 -->
+    <section class="w-panel" id="panel-2" style="display:none;">
+        <h3>Heures d'utilisation</h3>
+        <p class="w-hint">Cochez les heures précises d'utilisation. Une fois le nombre d'heures déclaré atteint, les cases restantes se grisent — décochez pour recocher ailleurs.</p>
+        <div class="w-inline-fields">
+            <label>Heure de lever du soleil <input type="number" id="heure-lever" value="6" min="0" max="23"></label>
+            <label>Heure de coucher du soleil <input type="number" id="heure-coucher" value="18" min="0" max="23"></label>
+        </div>
+        <div id="bande24h-container"></div>
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(1)">← Retour</button>
+            <button class="w-btn-next valider-btn" type="button" onclick="lancerPredimensionnement()">⚡ Lancer le prédimensionnement</button>
+        </div>
+        <div id="predim-resultats"></div>
+        <div class="w-nav" id="nav-vers-3" style="display:none;"><span></span><button class="w-btn-next" type="button" onclick="allerEtape(3)">Étape suivante : Panneaux →</button></div>
+    </section>
 
-    <h2>Paramètres</h2>
-    <label>Autonomie (nuits sans soleil) :</label>
-    <input type="number" id="autonomy" value="1" min="1" oninput="verifierFormulaire()"><br>
-    <label>HSP — Heures Solaires Pleines (mis à jour selon la ville) :</label>
-    <input type="number" id="hsp" value="5.2" min="1" step="0.1"><br>
-    <hr>
+    <!-- ÉTAPE 3 : PANNEAUX -->
+    <section class="w-panel" id="panel-3" style="display:none;">
+        <h3>Choisissez vos panneaux solaires</h3>
+        <button class="add-composant-btn" type="button" onclick="ouvrirAjoutPanneau()">+ Nouveau panneau (via photo fiche technique)</button>
+        <div class="w-inline-fields"><label>Tension max MPPT (V) <input type="number" id="vmax-mppt" value="150" min="12"></label></div>
+        <div id="tableau-panneaux"></div>
+        <button class="valider-btn" type="button" onclick="calculerNbPanneauxUI()">🔢 Calculer le nombre de panneaux nécessaire</button>
+        <div id="resultat-panneaux"></div>
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(2)">← Retour</button>
+            <button class="w-btn-next" id="btn-vers-4" type="button" onclick="allerEtape(4)" disabled>Étape suivante : Onduleur →</button>
+        </div>
+    </section>
 
-    <button class="valider-btn" id="btn-valider" type="button" onclick="validerEtAnalyser()" disabled>
-        ✅ Valider &amp; Lancer l'Analyse IA
-    </button>
+    <!-- ÉTAPE 4 : ONDULEUR -->
+    <section class="w-panel" id="panel-4" style="display:none;">
+        <h3>Choisissez votre onduleur</h3>
+        <button class="add-composant-btn" type="button" onclick="ouvrirAjoutOnduleur()">+ Nouvel onduleur (via photo fiche technique)</button>
+        <div id="tableau-onduleurs"></div>
+        <div id="resultat-compat"></div>
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(3)">← Retour</button>
+            <button class="w-btn-next" id="btn-vers-5" type="button" onclick="allerEtape(5)" disabled>Étape suivante : Batteries →</button>
+        </div>
+    </section>
 
-    <div id="ia-results" style="margin-top:20px;"></div>
-    <br>
-    <button class="pdf-btn" type="button" onclick="generatePDF()">📄 Télécharger Devis PDF</button>
+    <!-- ÉTAPE 5 : BATTERIES -->
+    <section class="w-panel" id="panel-5" style="display:none;">
+        <h3>Choisissez vos batteries</h3>
+        <button class="add-composant-btn" type="button" onclick="ouvrirAjoutBatterie()">+ Nouvelle batterie (via photo fiche technique)</button>
+        <div id="tableau-batteries"></div>
+        <div class="w-inline-fields"><label>Jours d'autonomie <input type="number" id="jours-autonomie" value="1" min="0.5" step="0.5"></label></div>
+        <button class="valider-btn" type="button" onclick="calculerNbBatteriesUI()">🔋 Calculer le nombre de batteries</button>
+        <div id="resultat-batteries"></div>
+        <div class="w-nav">
+            <button class="w-btn-back" type="button" onclick="allerEtape(4)">← Retour</button>
+            <button class="w-btn-next" id="btn-vers-6" type="button" onclick="allerEtape(6)" disabled>Étape suivante : Validation →</button>
+        </div>
+    </section>
+
+    <!-- ÉTAPE 6 : VALIDATION -->
+    <section class="w-panel" id="panel-6" style="display:none;">
+        <div class="marque-blanche-box">
+            <h3 style="margin-top:0;">Personnalisation du rapport</h3>
+            <label>Nom de l'entreprise / du client</label>
+            <input type="text" id="nom-entreprise" placeholder="Ex: Solaire Plus Togo">
+            <label>Logo du client (optionnel)</label>
+            <input type="file" id="logo-client" accept="image/*" onchange="onLogoChange(event)">
+            <div id="logo-apercu"></div>
+        </div>
+        <button class="valider-btn" id="btn-valider-final" type="button" onclick="validerEtLancerAnalyseIA()">✅ VALIDER ET LANCER L'ANALYSE IA</button>
+        <div id="ia-results" style="margin-top:20px;"></div><br>
+        <button class="pdf-btn" id="btn-pdf" type="button" onclick="genererPDF()" style="display:none;">📄 Télécharger le rapport PDF</button>
+        <div class="w-nav"><button class="w-btn-back" type="button" onclick="allerEtape(5)">← Retour</button><span></span></div>
+    </section>
 </form>
+</div>
+
+<!-- ============ MODALES "+NOUVEAU" (liste à gauche / fiche à droite déjà géré par l'écran d'origine, ici formulaire d'ajout) ============ -->
+<div class="modal-overlay" id="modal-ajout-panneau">
+  <div class="modal-box">
+    <h3>+ Nouveau panneau</h3>
+    <input type="file" accept="image/*" capture="environment" class="photo-btn" onchange="photoPanneau(this)" style="display:block;">
+    <p class="w-hint">📸 Prenez la fiche technique en photo pour un remplissage automatique, ou saisissez manuellement.</p>
+    <label>Fabricant</label><input type="text" id="np-fabricant">
+    <label>Modèle</label><input type="text" id="np-modele">
+    <label>Puissance (W)</label><input type="number" id="np-puissance">
+    <label>Voc (V)</label><input type="number" id="np-voc" step="0.01">
+    <label>Icc (A)</label><input type="number" id="np-icc" step="0.01">
+    <label>Vmp (V)</label><input type="number" id="np-vmp" step="0.01">
+    <label>Imp (A)</label><input type="number" id="np-imp" step="0.01">
+    <div class="w-nav"><button class="w-btn-back" type="button" onclick="fermerModal('modal-ajout-panneau')">Annuler</button><button class="w-btn-next" type="button" onclick="validerAjoutPanneau()">Ajouter</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajout-onduleur">
+  <div class="modal-box">
+    <h3>+ Nouvel onduleur</h3>
+    <input type="file" accept="image/*" capture="environment" class="photo-btn" onchange="photoOnduleur(this)" style="display:block;">
+    <p class="w-hint">📸 Prenez la fiche technique en photo pour un remplissage automatique, ou saisissez manuellement.</p>
+    <label>Fabricant</label><input type="text" id="no-fabricant">
+    <label>Modèle</label><input type="text" id="no-modele">
+    <label>Puissance nominale (W)</label><input type="number" id="no-pnom">
+    <label>Tension batterie min (V)</label><input type="number" id="no-vbatmin">
+    <label>Tension batterie max (V)</label><input type="number" id="no-vbatmax">
+    <label>Voc max entrée PV (V)</label><input type="number" id="no-vocmax">
+    <label>MPPT min (V)</label><input type="number" id="no-mpptmin">
+    <label>MPPT max (V)</label><input type="number" id="no-mpptmax">
+    <label>Courant max entrée PV (A)</label><input type="number" id="no-imppmax">
+    <div class="w-nav"><button class="w-btn-back" type="button" onclick="fermerModal('modal-ajout-onduleur')">Annuler</button><button class="w-btn-next" type="button" onclick="validerAjoutOnduleur()">Ajouter</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ajout-batterie">
+  <div class="modal-box">
+    <h3>+ Nouvelle batterie</h3>
+    <input type="file" accept="image/*" capture="environment" class="photo-btn" onchange="photoBatterie(this)" style="display:block;">
+    <p class="w-hint">📸 Prenez la fiche technique en photo pour un remplissage automatique, ou saisissez manuellement.</p>
+    <label>Fabricant</label><input type="text" id="nb-fabricant">
+    <label>Modèle</label><input type="text" id="nb-modele">
+    <label>Type</label>
+    <select id="nb-type"><option>Lithium-LiFePO4</option><option>Lithium-ion</option><option>GEL</option><option>AGM</option><option>OPzV / OPzS</option></select>
+    <label>Tension (V)</label><input type="number" id="nb-tension">
+    <label>Capacité (Ah)</label><input type="number" id="nb-ah">
+    <label>Capacité (Wh)</label><input type="number" id="nb-wh">
+    <div class="w-nav"><button class="w-btn-back" type="button" onclick="fermerModal('modal-ajout-batterie')">Annuler</button><button class="w-btn-next" type="button" onclick="validerAjoutBatterie()">Ajouter</button></div>
+  </div>
+</div>
+
 <footer>
-        <section><h3>Contactez-nous</h3>
-            <div class="contact">
-                <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook</a>
-                <a href="https://wa.me/22892196727" target="_blank"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
-                <a href="tel:+22892196727"><i class="fa-solid fa-phone"></i> +228 92 19 67 27</a>
-                <a href="tel:+22890104393"><i class="fa-solid fa-phone"></i> +228 90 10 43 93</a>
-            </div>
-        </section>
-        <hr>
-        <small><span>P</span>ulsar <span>E</span>co <span>G</span>roup © 2026</small>
-    </footer>
-<script src="menage.js"></script>
+    <section><h3>Contactez-nous</h3>
+        <div class="contact">
+            <a href="https://www.facebook.com/profile.php?id=100063567024819" target="_blank"><i class="fa-brands fa-facebook"></i> Facebook</a>
+            <a href="https://wa.me/22892196727" target="_blank"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+            <a href="tel:+22892196727"><i class="fa-solid fa-phone"></i> +228 92 19 67 27</a>
+        </div>
+    </section>
+    <hr><small><span>P</span>ulsar <span>E</span>co <span>G</span>roup © 2026 —</small>
+</footer>
+
+<script src="wizard.js"></script>
 <script>
-    if (!verifierAcces()) {
-        afficherPageAbonnement('Ménage');
-    } else {
-        afficherBandeauUser();
-        creerChampVille('ville-container');
-    }
+  surChangementAuth(function (user) {
+    if (user) { afficherEcranMesProjets(); } else { afficherEcranAuth(); }
+  });
+  if (!firebaseEstConfigure()) {
+    document.getElementById('auth-message').innerHTML = '⚠️ Comptes non configurés (voir GUIDE.md). <a href="#" onclick="ETAT.projetId=null;ETAT.projetNom=\'Test sans compte\';ouvrirWizard(\'Ménage\');return false;">Tester le parcours sans compte →</a>';
+  }
 </script>
 </body>
 </html>
