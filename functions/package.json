@@ -1,0 +1,12 @@
+{
+  "name": "pulsar-functions",
+  "description": "Cloud Functions pour Pulsar Eco Group AI v11 (lecture de fiches techniques par photo)",
+  "engines": { "node": "18" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-functions": "^4.9.0",
+    "firebase-admin": "^11.11.0",
+    "node-fetch": "^2.7.0"
+  },
+  "private": true
+}
