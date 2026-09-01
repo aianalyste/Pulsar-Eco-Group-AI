@@ -22,20 +22,26 @@
 //     }
 // ================================================================
 
+// ================================================================
+//  PULSAR ECO GROUP — COMPTES & MES PROJETS
+//  Utilise Firebase (Authentication + Firestore).
+//  ✅ Configuration déjà remplie avec le projet "pulsar-eco-group".
+// ================================================================
+
 var firebaseConfig = {
-  apiKey: "VOTRE_API_KEY",
-  authDomain: "VOTRE_PROJET.firebaseapp.com",
-  projectId: "VOTRE_PROJET",
-  storageBucket: "VOTRE_PROJET.appspot.com",
-  messagingSenderId: "VOTRE_SENDER_ID",
-  appId: "VOTRE_APP_ID"
+  apiKey: "AIzaSyDygmPjCKQ4BXrCzz8nNxXvhftMxQbQg-Y",
+  authDomain: "pulsar-eco-group.firebaseapp.com",
+  projectId: "pulsar-eco-group",
+  storageBucket: "pulsar-eco-group.firebasestorage.app",
+  messagingSenderId: "255766033995",
+  appId: "1:255766033995:web:c4ea6eeaac236ee2893fce"
 };
 
 var _fbApp = null, _fbAuth = null, _fbDb = null, _configured = false;
 
 function initFirebase() {
   if (firebaseConfig.apiKey === "VOTRE_API_KEY") {
-    console.warn("⚠️ Firebase non configuré : remplissez firebaseConfig dans comptes-v11.js");
+    console.warn("⚠️ Firebase non configuré : remplissez firebaseConfig dans comptes.js");
     return false;
   }
   _fbApp = firebase.initializeApp(firebaseConfig);
@@ -65,10 +71,6 @@ function surChangementAuth(callback) {
 }
 
 // ---------------- Mes Projets ----------------
-// Un "projet" = { uid, nomProjet, typeModule, dateCreation, dateMaj, etatComplet }
-// etatComplet contient tout ce qu'il faut pour reprendre exactement où on s'est arrêté :
-// { etape, ETAT: {...état complet du wizard...} }
-
 function creerProjet(nomProjet, typeModule) {
   var user = utilisateurActuel();
   if (!user) return Promise.reject(new Error('Non connecté'));
