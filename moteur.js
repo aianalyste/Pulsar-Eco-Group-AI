@@ -1,25 +1,20 @@
 // ================================================================
-//  PULSAR ECO GROUP — MOTEUR IA v11.0
-//  Évolutions validées le 29/08-30/08 (6 points) :
-//   1) Stockage : (30%×E_jour + E_nuit) × 1,10  +  indice Is
-//   3) Tableau appareils V2 : temps d'utilisation + verrouillage (UI, wizard-v11.js)
-//   4) Écran Onduleur + contrôle de compatibilité
-//   5) Panneaux : nombre jamais premier, séries max / parallèles min
-//   6) Boucle d'optimisation : réduction du nombre de batteries (≤10% d'écart)
+//  PULSAR ECO GROUP — MOTEUR IA
+//  Bande horaire : Jour = 06h-18h (inclus) / Nuit = 19h-05h
 // ================================================================
 
 var C = {
   ETA_ONDULEUR:   0.9,
   ETA_REGULATEUR: 0.9,
   ETA_BATTERIE:   0.9,
-  RP:             0.65,
+  RP:             0.70,
   K_SECURITE:     1.25,
   RHO_CUIVRE:     16e-9,
   DELTA_V:        0.02,
   JOURS_AUTONOMIE_DEFAUT: 1,
-  MARGE_STOCKAGE: 0.10,      // point 1 : marge appliquée sur l'énergie à stocker
-  PART_JOUR_STOCKAGE: 0.30,  // point 1 : 30% de l'énergie du jour entre dans le besoin de stockage
-  MARGE_OPTIMISATION: 0.10,  // point 6 : écart maximal toléré pour retirer une batterie
+  MARGE_STOCKAGE: 0.10,
+  PART_JOUR_STOCKAGE: 0.30,
+  MARGE_OPTIMISATION: 0.10,
   HEURE_LEVER_DEFAUT:   6,
   HEURE_COUCHER_DEFAUT: 18
 };
@@ -37,8 +32,10 @@ var CALIBRES_DISJONCTEUR  = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 16
 var TENSIONS_DISJONCTEUR  = [32, 48, 60, 150, 250, 300, 400, 500, 600, 1000];
 
 // ================================================================
-//  1) BILAN ÉNERGÉTIQUE — jour / nuit + pointe de démarrage
-//  (inchangé par rapport au v10 ; equipements = [{nom,pu,nombre,heuresActives[24]}])
+//  BILAN ÉNERGÉTIQUE — jour / nuit + pointe de démarrage
+//  equipements = [{nom,pu,nombre,heuresActives[24]}]
+//  Jour = heureLever à heureCoucher INCLUS (ex: 06h-18h)
+//  Nuit = le reste (ex: 19h-05h)
 // ================================================================
 function calculerBilanV10(equipements, heureLever, heureCoucher) {
   heureLever   = (heureLever   === undefined) ? C.HEURE_LEVER_DEFAUT   : heureLever;
@@ -58,7 +55,8 @@ function calculerBilanV10(equipements, heureLever, heureCoucher) {
     var E_jour = 0, E_nuit = 0;
     for (var h = 0; h < 24; h++) {
       if (!heuresActives[h]) continue;
-      var estJour = (h >= heureLever && h < heureCoucher);
+      // Jour = heureLever à heureCoucher INCLUS (ex: 6h..18h)
+      var estJour = (h >= heureLever && h <= heureCoucher);
       if (estJour) E_jour += PT; else E_nuit += PT;
     }
 
@@ -94,17 +92,12 @@ function calculerEnergieJournaliere(E_total) { return 1.2 * E_total; }
 function calculerPuissanceCrete(Ej, IR) { return Ej / (C.ETA_ONDULEUR * C.ETA_REGULATEUR * C.RP * IR); }
 function tensionSysteme(Pc_Wc) { if (Pc_Wc < 500) return 12; if (Pc_Wc <= 2000) return 24; return 48; }
 
-// ================================================================
-//  POINT 5 — NOMBRE DE PANNEAUX : jamais premier, séries max / parallèles min
-// ================================================================
 function estPremier(n) {
   if (n < 2) return false;
   for (var i = 2; i * i <= n; i++) if (n % i === 0) return false;
   return true;
 }
 
-// Renvoie la plus grande paire de diviseurs (Ns, N) d'un nombre composé n,
-// avec Ns le plus grand possible sous la contrainte Ns*Voc <= VmaxMPPT (séries longues / parallèles mini)
 function factoriserPourSeriesLongues(n, Voc, VmaxMPPT) {
   var meilleurNs = 1, meilleurN = n;
   for (var d = 1; d <= n; d++) {
@@ -142,9 +135,6 @@ function calculerPuissanceConvertisseur(P_pointe_max) {
   return { brut: +brut.toFixed(2), normalise: Math.ceil(brut / 100) * 100 };
 }
 
-// ================================================================
-//  POINT 1 — CAPACITÉ DE STOCKAGE + INDICE DE STOCKAGE (Is)
-// ================================================================
 function calculerBesoinStockage(E_jour, E_nuit) {
   var base = C.PART_JOUR_STOCKAGE * E_jour + E_nuit;
   var avecMarge = base * (1 + C.MARGE_STOCKAGE);
@@ -162,10 +152,6 @@ function calculerCapaciteBatterie(energieAStocker, joursAutonomie, Vbat, TD) {
 
 function calculerNombreBatteries(Cb, Cu) { return Math.ceil(Cb / Cu); }
 
-// ================================================================
-//  POINT 6 — BOUCLE D'OPTIMISATION : réduire le nombre de batteries
-//  tant que l'écart avec le besoin réel reste <= MARGE_OPTIMISATION
-// ================================================================
 function optimiserNombreBatteries(Nb_initial, Cu, energieAStocker, Vbat, TD) {
   var etapes = [];
   var Nb = Nb_initial;
@@ -173,20 +159,13 @@ function optimiserNombreBatteries(Nb_initial, Cu, energieAStocker, Vbat, TD) {
 
   while (Nb > 1) {
     var capActuelle = capaciteWh(Nb - 1);
-    var ecart = (capActuelle - energieAStocker) / energieAStocker; // négatif si insuffisant
+    var ecart = (capActuelle - energieAStocker) / energieAStocker;
     etapes.push({ Nb: Nb - 1, capaciteWh: +capActuelle.toFixed(0), ecart: +(ecart * 100).toFixed(1) });
-    if (ecart >= -C.MARGE_OPTIMISATION) {
-      Nb = Nb - 1; // on peut retirer une batterie de plus, on continue la boucle
-    } else {
-      break; // retirer une de plus ferait tomber sous le besoin - marge tolérée : on s'arrête
-    }
+    if (ecart >= -C.MARGE_OPTIMISATION) { Nb = Nb - 1; } else { break; }
   }
   return { Nb_final: Nb, Nb_avant_optimisation: Nb_initial, etapesTestees: etapes };
 }
 
-// ================================================================
-//  SECTIONS DE CÂBLE / DISJONCTEURS (inchangé)
-// ================================================================
 function calculerSectionCable(L_m, I_A, V_ref) {
   var dV = C.DELTA_V * V_ref;
   var S_mm2 = (2 * C.RHO_CUIVRE * L_m * I_A / dV) * 1e6;
@@ -200,9 +179,6 @@ function prochaineValeur(x, liste) {
   return liste[liste.length - 1];
 }
 
-// ================================================================
-//  POINT 4 — CONTRÔLE DE COMPATIBILITÉ ONDULEUR
-// ================================================================
 function verifierCompatibiliteOnduleur(onduleur, Vsys, V_string_max, Isc_total_parallele, Pconv_W) {
   var alertes = [];
   if (onduleur.tensionBatMin !== undefined && (Vsys < onduleur.tensionBatMin || Vsys > onduleur.tensionBatMax)) {
@@ -220,9 +196,6 @@ function verifierCompatibiliteOnduleur(onduleur, Vsys, V_string_max, Isc_total_p
   return { compatible: alertes.length === 0, alertes: alertes };
 }
 
-// ================================================================
-//  CALCUL COMPLET — enchaîne toutes les étapes (v11)
-// ================================================================
 function calculDimensionnementComplet(input) {
   var bilan = calculerBilanV10(input.equipements, input.heureLever, input.heureCoucher);
   var Ej = calculerEnergieJournaliere(bilan.E_total);
@@ -235,7 +208,6 @@ function calculDimensionnementComplet(input) {
   var Ic = calculerIntensiteControleur(N, input.panneau.icc);
   var Pconv = calculerPuissanceConvertisseur(bilan.P_pointe_max);
 
-  // Point 1 : stockage
   var stockage = calculerBesoinStockage(bilan.E_jour_total, bilan.E_nuit_total);
   var Is = calculerIndiceStockage(bilan.E_nuit_total, bilan.E_total);
   var TD = TD_BATTERIE[input.batterie.type] || 0.8;
@@ -243,7 +215,6 @@ function calculDimensionnementComplet(input) {
   var Cb = calculerCapaciteBatterie(stockage.avecMarge, joursAuto, Vsys, TD);
   var Nb_initial = calculerNombreBatteries(Cb, input.batterie.capacite);
 
-  // Point 6 : optimisation (réduction du nombre de batteries)
   var optimBatteries = optimiserNombreBatteries(Nb_initial, input.batterie.capacite, stockage.avecMarge * joursAuto, Vsys, TD);
   var Nb = optimBatteries.Nb_final;
   var Cb_Wh_total = Nb * input.batterie.capacite * Vsys;
@@ -260,7 +231,6 @@ function calculDimensionnementComplet(input) {
   var D2 = calculerDisjoncteur(Vsys, I2_brut);
   var D3 = calculerDisjoncteur(V3, I3);
 
-  // Point 4 : compatibilité onduleur (si un onduleur a été choisi)
   var compatOnduleur = null;
   if (input.onduleur) {
     compatOnduleur = verifierCompatibiliteOnduleur(input.onduleur, Vsys, V_string, N * input.panneau.icc, Pconv.normalise);

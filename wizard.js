@@ -1,8 +1,7 @@
 // ================================================================
-//  PULSAR ECO GROUP — PARCOURS
-//  6 étapes : Ville+Appareils -> Heures (verrouillées) -> Panneaux
+//  PULSAR ECO GROUP — PARCOURS COMPLET
+//  6 étapes : Ville+Appareils -> Heures (2 bandes Jour/Nuit) -> Panneaux
 //             -> Onduleur -> Batteries -> Validation
-//  + Authentification et "Mes Projets" (point 2)
 // ================================================================
 var ETAT = {
   equipements: [],
@@ -35,7 +34,7 @@ function soumettreAuth(mode) {
   var msg = document.getElementById('auth-message');
   msg.textContent = '';
   if (!email || !mdp) { msg.textContent = 'Renseignez un email et un mot de passe.'; return; }
-  if (!firebaseEstConfigure()) { msg.textContent = '⚠️ Le système de comptes n\'est pas encore configuré (voir GUIDE_V11.md).'; return; }
+  if (!firebaseEstConfigure()) { msg.textContent = '⚠️ Le système de comptes n\'est pas encore configuré.'; return; }
 
   var action = mode === 'inscription' ? creerCompte(email, mdp) : seConnecter(email, mdp);
   action.then(function () { afficherEcranMesProjets(); })
@@ -48,7 +47,8 @@ function traduireErreurFirebase(err) {
     'auth/invalid-email': 'Adresse email invalide.',
     'auth/weak-password': 'Mot de passe trop court (6 caractères minimum).',
     'auth/user-not-found': 'Aucun compte avec cet email.',
-    'auth/wrong-password': 'Mot de passe incorrect.'
+    'auth/wrong-password': 'Mot de passe incorrect.',
+    'auth/invalid-login-credentials': 'Email ou mot de passe incorrect, ou compte inexistant (cliquez "Créer un compte").'
   };
   return m[err.code] || ('Erreur : ' + err.message);
 }
@@ -153,7 +153,7 @@ function reconstruireTableauDepuisEtat() {
 }
 
 // ================================================================
-//  ÉTAPE 1 : tableau appareils V2 (+ colonne Temps d'utilisation)
+//  ÉTAPE 1 : tableau appareils (+ colonne Temps d'utilisation)
 // ================================================================
 function addRow() {
   var t = document.getElementById('equipmentTable');
@@ -212,7 +212,7 @@ function passageVersEtape2Valide() {
 }
 
 // ================================================================
-//  ÉTAPE 2 : bande horaire avec VERROUILLAGE (point 3)
+//  ÉTAPE 2 : DEUX BANDES SÉPARÉES — Jour (06h-18h) / Nuit (19h-05h)
 // ================================================================
 function construireBande24h() {
   var t = document.getElementById('equipmentTable');
@@ -220,9 +220,18 @@ function construireBande24h() {
   cont.innerHTML = '';
   ETAT.equipements = [];
 
-  var hl = parseInt(document.getElementById('heure-lever').value) || 6;
-  var hc = parseInt(document.getElementById('heure-coucher').value) || 18;
+  var hl = parseInt(document.getElementById('heure-lever').value);
+  var hc = parseInt(document.getElementById('heure-coucher').value);
+  if (isNaN(hl)) hl = 6;
+  if (isNaN(hc)) hc = 18;
   ETAT.heureLever = hl; ETAT.heureCoucher = hc;
+
+  // Bande Jour = hl à hc INCLUS ; Bande Nuit = le reste (hc+1 .. 23, 0 .. hl-1)
+  var heuresJour = [];
+  for (var h = hl; h <= hc; h++) heuresJour.push(h);
+  var heuresNuit = [];
+  for (var h2 = hc + 1; h2 < 24; h2++) heuresNuit.push(h2);
+  for (var h3 = 0; h3 < hl; h3++) heuresNuit.push(h3);
 
   for (var i = 1; i < t.rows.length; i++) {
     var c = t.rows[i].cells;
@@ -235,18 +244,29 @@ function construireBande24h() {
     var coeffInfo = trouverCoeffDemarrage(nom);
     var badge = coeffInfo ? ' <span style="color:#e65100;font-weight:700;">(inductif ×' + coeffInfo.coeff + ')</span>' : '';
 
+    function construireCases(listeHeures, idx) {
+      return listeHeures.map(function (h) {
+        return '<div class="bande24h-case"><label>' + h + 'h</label>' +
+          '<input type="checkbox" data-idx="' + idx + '" data-h="' + h + '" onchange="majCompteurHeures(' + idx + ')"></div>';
+      }).join('');
+    }
+
     var bloc = document.createElement('div');
     bloc.className = 'bande24h-appareil';
-    var cases = '';
-    for (var h = 0; h < 24; h++) {
-      var estJour = (h >= hl && h < hc);
-      cases += '<div class="bande24h-case ' + (estJour ? 'jour' : 'nuit') + '"><label>' + h + 'h</label>' +
-        '<input type="checkbox" data-idx="' + idx + '" data-h="' + h + '" onchange="majCompteurHeures(' + idx + ')"></div>';
-    }
     bloc.innerHTML =
       '<div class="bande24h-titre"><span>' + nom + ' (' + pu + ' W × ' + nombre + ')' + badge + '</span>' +
       '<span class="bande24h-compteur" id="compteur-' + idx + '">0 / ' + tempsDeclare + ' h déclarées</span></div>' +
-      '<div class="bande24h-grille" id="grille-' + idx + '">' + cases + '</div>';
+
+      '<div class="bande24h-groupe bande24h-groupe-jour">' +
+        '<div class="bande24h-soustitre">☀️ Heures de jour (' + hl + 'h - ' + hc + 'h)</div>' +
+        '<div class="bande24h-grille" id="grille-jour-' + idx + '">' + construireCases(heuresJour, idx) + '</div>' +
+      '</div>' +
+
+      '<div class="bande24h-groupe bande24h-groupe-nuit">' +
+        '<div class="bande24h-soustitre">🌙 Heures de nuit (' + (hc + 1) + 'h - ' + (hl === 0 ? 23 : hl - 1) + 'h)</div>' +
+        '<div class="bande24h-grille" id="grille-nuit-' + idx + '">' + construireCases(heuresNuit, idx) + '</div>' +
+      '</div>';
+
     cont.appendChild(bloc);
   }
   document.getElementById('predim-resultats').innerHTML = '';
@@ -267,11 +287,14 @@ function majCompteurHeures(idx) {
   compteurEl.textContent = n + ' / ' + eq.tempsDeclare + ' h déclarées';
   compteurEl.style.color = atteint ? '#2e7d32' : '#1565c0';
 
-  // VERROUILLAGE : dès que le total déclaré est atteint, les cases non cochées se grisent
+  // VERROUILLAGE : dès que le total déclaré est atteint, les cases non cochées (jour ET nuit) se grisent
   boxes.forEach(function (b) {
     if (!b.checked) b.disabled = atteint;
   });
-  document.getElementById('grille-' + idx).classList.toggle('grille-verrouillee', atteint);
+  var gJour = document.getElementById('grille-jour-' + idx);
+  var gNuit = document.getElementById('grille-nuit-' + idx);
+  if (gJour) gJour.classList.toggle('grille-verrouillee', atteint);
+  if (gNuit) gNuit.classList.toggle('grille-verrouillee', atteint);
 }
 
 function tousLesTempsAtteints() {
@@ -370,7 +393,7 @@ function validerAjoutPanneau() {
 }
 
 // ================================================================
-//  ÉTAPE 4 : ONDULEUR (nouveau, point 4) + contrôle de compatibilité
+//  ÉTAPE 4 : ONDULEUR + contrôle de compatibilité
 // ================================================================
 function construireTableauOnduleurs() {
   if (!ETAT.onduleurChoisi) ETAT.onduleurChoisi = ONDULEURS_CATALOGUE[0];
@@ -538,7 +561,7 @@ function validerEtLancerAnalyseIA() {
     var ville = getVilleSelectionnee();
     var contexte = {
       nomModule: ETAT.projetNom, ville: ville ? { nom: ville.nom } : null,
-      marque: { nom: ETAT.nomEntreprise, logoDataUrl: ETAT.logoDataUrl }, prefixeRef: 'PEG-V11'
+      marque: { nom: ETAT.nomEntreprise, logoDataUrl: ETAT.logoDataUrl }, prefixeRef: 'PEG'
     };
     ETAT.sectionsRapport = construireSectionsRapport(r, contexte);
     ETAT.contexteRapport = contexte;

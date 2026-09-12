@@ -29,14 +29,22 @@
 .w-filtres{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;}
 .w-filtres select{padding:8px;border-radius:6px;border:1.5px solid #b0bec5;font-size:.85rem;}
 
-.bande24h-appareil{background:#f8faff;border-radius:8px;padding:12px 14px;margin-bottom:12px;border-left:4px solid #1565c0;}
-.bande24h-titre{font-weight:700;color:#0d2244;margin-bottom:8px;font-size:.9rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
-.bande24h-grille{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;}
+.bande24h-appareil{background:#f8faff;border-radius:8px;padding:12px 14px;margin-bottom:14px;border-left:4px solid #1565c0;}
+.bande24h-titre{font-weight:700;color:#0d2244;margin-bottom:10px;font-size:.9rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+.bande24h-compteur{font-size:.78rem;color:#1565c0;font-weight:600;}
+
+/* ===== Les 2 bandes séparées : Jour / Nuit ===== */
+.bande24h-groupe{margin-bottom:10px;padding:10px;border-radius:8px;}
+.bande24h-groupe-jour{background:#fff8e1;border:1px solid #ffe082;}
+.bande24h-groupe-nuit{background:#e8eaf6;border:1px solid #9fa8da;}
+.bande24h-soustitre{font-size:.8rem;font-weight:700;margin-bottom:8px;}
+.bande24h-groupe-jour .bande24h-soustitre{color:#f57f17;}
+.bande24h-groupe-nuit .bande24h-soustitre{color:#3949ab;}
+.bande24h-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:4px;}
 .bande24h-case{text-align:center;font-size:.68rem;}
 .bande24h-case input{transform:scale(1.15);cursor:pointer;}
-.bande24h-case.jour label{color:#f9a825;font-weight:700;}
-.bande24h-case.nuit label{color:#5c6bc0;}
-.bande24h-compteur{font-size:.78rem;color:#1565c0;font-weight:600;}
+.bande24h-case label{display:block;color:#546e7a;margin-bottom:2px;}
+.grille-verrouillee input:disabled{opacity:.3;}
 
 .panneau-row.selected,.batterie-row.selected{background:#c8e6c9 !important;}
 
@@ -52,7 +60,6 @@
 .marque-blanche-box label{display:block;font-weight:600;font-size:.85rem;margin:10px 0 5px;color:#0d2244;}
 .marque-blanche-box input[type="text"]{width:100%;box-sizing:border-box;padding:9px;border-radius:7px;border:1.5px solid #b0bec5;}
 
-/* ===== v11 : auth, mes projets, jauge Is, modales +Nouveau ===== */
 .auth-box{max-width:380px;margin:60px auto;background:#f8faff;border:1.5px solid #d0dcf5;border-radius:12px;padding:28px;}
 .auth-box input{width:100%;box-sizing:border-box;padding:11px;margin:6px 0;border-radius:7px;border:1.5px solid #b0bec5;}
 .auth-box button{width:100%;padding:12px;margin-top:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;}
@@ -68,7 +75,6 @@
 .nouveau-projet-box{background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:16px;margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:end;}
 .nouveau-projet-box input,.nouveau-projet-box select{padding:9px;border-radius:6px;border:1.5px solid #b0bec5;}
 
-.grille-verrouillee input:disabled{opacity:.3;}
 .jauge-is{margin:10px 0 16px;}
 .jauge-is-label{font-size:.85rem;font-weight:700;color:#0d2244;margin-bottom:6px;}
 .jauge-is-barre{background:#e3e9f0;border-radius:20px;height:16px;overflow:hidden;}
