@@ -16,8 +16,12 @@ var ETAT = {
   projetId: null, projetNom: null
 };
 
-chargerCataloguesPersonnalises();
 if (typeof firebaseConfig !== 'undefined') initFirebase();
+if (firebaseEstConfigure()) {
+  chargerCataloguesPartages(); // catalogues communs à tous les utilisateurs (Firestore)
+} else {
+  chargerCataloguesPersonnalises(); // repli local si Firebase non configuré
+}
 
 // ================================================================
 //  AUTHENTIFICATION
@@ -364,7 +368,19 @@ function calculerNbPanneauxUI() {
   sauvegardeAuto();
 }
 
-function ouvrirAjoutPanneau() { document.getElementById('modal-ajout-panneau').style.display = 'flex'; }
+function viderChamps(ids) {
+  ids.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+  });
+}
+
+function ouvrirAjoutPanneau() {
+  viderChamps(['np-fabricant','np-modele','np-puissance','np-voc','np-icc','np-vmp','np-imp']);
+  document.getElementById('modal-ajout-panneau').style.display = 'flex';
+}
 function fermerModal(id) { document.getElementById(id).style.display = 'none'; }
 function photoPanneau(input) {
   lireFicheParPhoto(input, 'panneau', function (d) {
@@ -385,11 +401,11 @@ function validerAjoutPanneau() {
     imp: parseFloat(document.getElementById('np-imp').value), annee: new Date().getFullYear()
   };
   if (!p.fabricant || !p.puissance || !p.voc) { alert('Renseignez au moins fabricant, puissance et Voc.'); return; }
-  var saved = sauvegarderComposantPersonnalise('panneaux', p);
-  PANNEAUX_CATALOGUE.push(saved);
-  ETAT.panneauChoisi = saved;
-  fermerModal('modal-ajout-panneau');
-  construireTableauPanneaux();
+  sauvegarderComposantPartage('panneaux', p, PANNEAUX_CATALOGUE, function (saved) {
+    ETAT.panneauChoisi = saved;
+    fermerModal('modal-ajout-panneau');
+    construireTableauPanneaux();
+  });
 }
 
 // ================================================================
@@ -423,7 +439,10 @@ function verifierCompatibiliteUI() {
   sauvegardeAuto();
 }
 
-function ouvrirAjoutOnduleur() { document.getElementById('modal-ajout-onduleur').style.display = 'flex'; }
+function ouvrirAjoutOnduleur() {
+  viderChamps(['no-fabricant','no-modele','no-pnom','no-vbatmin','no-vbatmax','no-vocmax','no-mpptmin','no-mpptmax','no-imppmax']);
+  document.getElementById('modal-ajout-onduleur').style.display = 'flex';
+}
 function photoOnduleur(input) {
   lireFicheParPhoto(input, 'onduleur', function (d) {
     document.getElementById('no-fabricant').value = d.fabricant || '';
@@ -448,11 +467,11 @@ function validerAjoutOnduleur() {
     imppMax: parseFloat(document.getElementById('no-imppmax').value) || null, type: 'Personnalisé'
   };
   if (!o.fabricant || !o.puissanceNominale) { alert('Renseignez au moins fabricant et puissance nominale.'); return; }
-  var saved = sauvegarderComposantPersonnalise('onduleurs', o);
-  ONDULEURS_CATALOGUE.push(saved);
-  ETAT.onduleurChoisi = saved;
-  fermerModal('modal-ajout-onduleur');
-  construireTableauOnduleurs();
+  sauvegarderComposantPartage('onduleurs', o, ONDULEURS_CATALOGUE, function (saved) {
+    ETAT.onduleurChoisi = saved;
+    fermerModal('modal-ajout-onduleur');
+    construireTableauOnduleurs();
+  });
 }
 
 // ================================================================
@@ -471,7 +490,10 @@ function construireTableauBatteries() {
 }
 function choisirBatterie(id) { ETAT.batterieChoisie = BATTERIES_CATALOGUE.find(function (b) { return b.id === id; }); }
 
-function ouvrirAjoutBatterie() { document.getElementById('modal-ajout-batterie').style.display = 'flex'; }
+function ouvrirAjoutBatterie() {
+  viderChamps(['nb-fabricant','nb-modele','nb-type','nb-tension','nb-ah','nb-wh']);
+  document.getElementById('modal-ajout-batterie').style.display = 'flex';
+}
 function photoBatterie(input) {
   lireFicheParPhoto(input, 'batterie', function (d) {
     document.getElementById('nb-fabricant').value = d.fabricant || '';
@@ -490,11 +512,11 @@ function validerAjoutBatterie() {
     dod: TD_BATTERIE[document.getElementById('nb-type').value] || 0.8, cycles: 4000
   };
   if (!b.fabricant || !b.tension || !b.capaciteAh) { alert('Renseignez au moins fabricant, tension et capacité.'); return; }
-  var saved = sauvegarderComposantPersonnalise('batteries', b);
-  BATTERIES_CATALOGUE.push(saved);
-  ETAT.batterieChoisie = saved;
-  fermerModal('modal-ajout-batterie');
-  construireTableauBatteries();
+  sauvegarderComposantPartage('batteries', b, BATTERIES_CATALOGUE, function (saved) {
+    ETAT.batterieChoisie = saved;
+    fermerModal('modal-ajout-batterie');
+    construireTableauBatteries();
+  });
 }
 
 function calculerNbBatteriesUI() {

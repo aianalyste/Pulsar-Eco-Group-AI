@@ -7,7 +7,7 @@ var C = {
   ETA_ONDULEUR:   0.9,
   ETA_REGULATEUR: 0.9,
   ETA_BATTERIE:   0.9,
-  RP:             0.70,
+  RP:             0.70,   // modifié : 0,65 -> 0,70 (demande boss)
   K_SECURITE:     1.25,
   RHO_CUIVRE:     16e-9,
   DELTA_V:        0.02,

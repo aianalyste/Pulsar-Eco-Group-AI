@@ -1,9 +1,7 @@
 // ================================================================
-//  PULSAR ECO GROUP — CATALOGUES v11
+//  PULSAR ECO GROUP — CATALOGUES
 //  Entrées marquées "source: officielle" = données vérifiées sur
-//  fiche technique constructeur ou distributeur agréé (recherche du
-//  30/08/2026). Les autres sont des valeurs de référence courantes du
-//  marché, à vérifier/ajuster avec vos propres fournisseurs.
+//  fiche technique constructeur ou distributeur agréé.
 //  Utilisez "+ Nouveau" dans l'application pour ajouter vos modèles réels.
 // ================================================================
 
@@ -29,29 +27,58 @@ var BATTERIES_CATALOGUE = [
   { id:'b7', fabricant:'Générique', modele:'OPzS 2V 1500Ah', type:'OPzV / OPzS', tension:2, capaciteAh:1500, capaciteWh:3000, dod:0.80, cycles:1500, source:'courante marché (pompage/agricole)' },
   { id:'b8', fabricant:'Générique', modele:'GEL 12V 200Ah', type:'GEL', tension:12, capaciteAh:200, capaciteWh:2400, dod:0.80, cycles:1200, source:'courante marché' },
   { id:'b9', fabricant:'Générique', modele:'AGM 12V 100Ah', type:'AGM', tension:12, capaciteAh:100, capaciteWh:1200, dod:0.50, cycles:600, source:'courante marché' },
+  { id:'b10', fabricant:'Générique', modele:'LiFePO4 24V 100Ah', type:'Lithium-LiFePO4', tension:24, capaciteAh:100, capaciteWh:2400, dod:0.95, cycles:6000, source:'courante marché' },
+  { id:'b11', fabricant:'Générique', modele:'LiFePO4 12V 100Ah', type:'Lithium-LiFePO4', tension:12, capaciteAh:100, capaciteWh:1200, dod:0.95, cycles:6000, source:'courante marché' },
 ];
 
+// ================================================================
+//  ONDULEURS — gamme élargie 12V à triphasé professionnel
+// ================================================================
 var ONDULEURS_CATALOGUE = [
-  { id:'o1', fabricant:'Deye', modele:'SUN-5K-SG04LP1-EU', puissanceNominale:5000, puissanceCrete:10000,
-    tensionBatMin:40, tensionBatMax:60, courantChargeMax:120, courantDechargeMax:120,
-    vocMax:500, mpptMin:150, mpptMax:425, nbMppt:2, imppMax:13,
-    tensionSortie:'230V mono', type:'Hybride', rendement:97.6, source:'officielle' },
-  { id:'o2', fabricant:'Deye', modele:'SUN-3.6K-SG04LP1-EU', puissanceNominale:3600, puissanceCrete:7200,
-    tensionBatMin:40, tensionBatMax:60, courantChargeMax:70, courantDechargeMax:70,
-    vocMax:500, mpptMin:150, mpptMax:425, nbMppt:1, imppMax:17,
-    tensionSortie:'230V mono', type:'Hybride', rendement:97.6, source:'officielle' },
-  { id:'o3', fabricant:'Growatt', modele:'SPF 5000 ES', puissanceNominale:5000, puissanceCrete:10000,
-    tensionBatMin:40, tensionBatMax:60, courantChargeMax:100, courantDechargeMax:100,
-    vocMax:450, mpptMin:60, mpptMax:430, nbMppt:1, imppMax:18,
-    tensionSortie:'230V mono', type:'Off-grid', rendement:93, source:'courante marché' },
-  { id:'o4', fabricant:'Victron Energy', modele:'MultiPlus-II 48/5000', puissanceNominale:5000, puissanceCrete:10000,
-    tensionBatMin:38, tensionBatMax:66, courantChargeMax:120, courantDechargeMax:120,
-    vocMax:null, mpptMin:null, mpptMax:null, nbMppt:0, imppMax:null,
-    tensionSortie:'230V mono', type:'Off-grid (MPPT séparé requis)', rendement:96, source:'courante marché' },
+  // ----- Petits systèmes résidentiels 12V / 24V (gamme manquante avant) -----
+  { id:'o8', fabricant:'MPP Solar', modele:'PIP-1212MSD', puissanceNominale:1200, puissanceCrete:2400,
+    tensionBatMin:10, tensionBatMax:15, courantChargeMax:60, courantDechargeMax:60,
+    vocMax:90, mpptMin:30, mpptMax:90, nbMppt:1, imppMax:18,
+    tensionSortie:'230V mono', type:'Off-grid', rendement:93, source:'courante marché (gamme MPP Solar PIP-MS)' },
+  { id:'o9', fabricant:'MPP Solar', modele:'PIP-2424MSD', puissanceNominale:2400, puissanceCrete:4800,
+    tensionBatMin:20, tensionBatMax:30, courantChargeMax:60, courantDechargeMax:60,
+    vocMax:100, mpptMin:35, mpptMax:100, nbMppt:1, imppMax:18,
+    tensionSortie:'230V mono', type:'Off-grid', rendement:93, source:'courante marché (gamme MPP Solar PIP-MS)' },
+  // ----- Systèmes 48V petits/moyens -----
   { id:'o5', fabricant:'MPP Solar', modele:'PIP-5048MK', puissanceNominale:5000, puissanceCrete:10000,
     tensionBatMin:40, tensionBatMax:60, courantChargeMax:80, courantDechargeMax:80,
     vocMax:450, mpptMin:60, mpptMax:430, nbMppt:1, imppMax:18,
     tensionSortie:'230V mono', type:'Off-grid', rendement:93, source:'courante marché' },
+  { id:'o3', fabricant:'Growatt', modele:'SPF 5000 ES', puissanceNominale:5000, puissanceCrete:10000,
+    tensionBatMin:40, tensionBatMax:60, courantChargeMax:100, courantDechargeMax:100,
+    vocMax:450, mpptMin:60, mpptMax:430, nbMppt:1, imppMax:18,
+    tensionSortie:'230V mono', type:'Off-grid', rendement:93, source:'courante marché' },
+  { id:'o10', fabricant:'Growatt', modele:'SPF 3000 TL', puissanceNominale:3000, puissanceCrete:6000,
+    tensionBatMin:40, tensionBatMax:60, courantChargeMax:60, courantDechargeMax:60,
+    vocMax:450, mpptMin:60, mpptMax:430, nbMppt:1, imppMax:16,
+    tensionSortie:'230V mono', type:'Off-grid', rendement:93, source:'courante marché' },
+  { id:'o2', fabricant:'Deye', modele:'SUN-3.6K-SG04LP1-EU', puissanceNominale:3600, puissanceCrete:7200,
+    tensionBatMin:40, tensionBatMax:60, courantChargeMax:70, courantDechargeMax:70,
+    vocMax:500, mpptMin:150, mpptMax:425, nbMppt:1, imppMax:17,
+    tensionSortie:'230V mono', type:'Hybride', rendement:97.6, source:'officielle' },
+  { id:'o1', fabricant:'Deye', modele:'SUN-5K-SG04LP1-EU', puissanceNominale:5000, puissanceCrete:10000,
+    tensionBatMin:40, tensionBatMax:60, courantChargeMax:120, courantDechargeMax:120,
+    vocMax:500, mpptMin:150, mpptMax:425, nbMppt:2, imppMax:13,
+    tensionSortie:'230V mono', type:'Hybride', rendement:97.6, source:'officielle' },
+  { id:'o4', fabricant:'Victron Energy', modele:'MultiPlus-II 48/5000', puissanceNominale:5000, puissanceCrete:10000,
+    tensionBatMin:38, tensionBatMax:66, courantChargeMax:120, courantDechargeMax:120,
+    vocMax:null, mpptMin:null, mpptMax:null, nbMppt:0, imppMax:null,
+    tensionSortie:'230V mono', type:'Off-grid (MPPT séparé requis)', rendement:96, source:'courante marché' },
+  // ----- Systèmes 48V puissants (moyennes entreprises) -----
+  { id:'o11', fabricant:'MPP Solar', modele:'MPI 10K', puissanceNominale:10000, puissanceCrete:20000,
+    tensionBatMin:40, tensionBatMax:60, courantChargeMax:200, courantDechargeMax:200,
+    vocMax:900, mpptMin:60, mpptMax:850, nbMppt:2, imppMax:20,
+    tensionSortie:'230V mono / 380V tri', type:'Hybride', rendement:96, source:'officielle' },
+  { id:'o7', fabricant:'Deye', modele:'SUN-12K-SG04LP3-EU', puissanceNominale:12000, puissanceCrete:24000,
+    tensionBatMin:40, tensionBatMax:60, courantChargeMax:240, courantDechargeMax:240,
+    vocMax:800, mpptMin:200, mpptMax:650, nbMppt:2, imppMax:17,
+    tensionSortie:'380V tri', type:'Hybride', rendement:97.6, source:'officielle' },
+  // ----- Gros systèmes industriels / triphasés haute tension -----
   { id:'o6', fabricant:'ATESS', modele:'HPS30 (triphasé)', puissanceNominale:30000, puissanceCrete:45000,
     tensionBatMin:400, tensionBatMax:560, courantChargeMax:100, courantDechargeMax:100,
     vocMax:1000, mpptMin:480, mpptMax:800, nbMppt:2, imppMax:94,
@@ -59,8 +86,8 @@ var ONDULEURS_CATALOGUE = [
 ];
 
 // ================================================================
-//  Ajout de composants personnalisés (persistant en localStorage,
-//  en attendant le backend v11 - point 2)
+//  Ajout de composants personnalisés (localStorage — remplacé par
+//  un stockage partagé Firestore, voir catalogue-cloud.js)
 // ================================================================
 function chargerCataloguesPersonnalises() {
   try {

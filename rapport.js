@@ -1,113 +1,133 @@
 // ================================================================
-//  PULSAR ECO GROUP — RAPPORT UNIFIÉ v10
-//  Une seule structure de données ("sections") sert à la fois à
-//  l'affichage écran ET au PDF -> plus jamais de PDF différent de
-//  l'écran. Supporte la marque blanche (logo + nom du client).
+//  PULSAR ECO GROUP — RAPPORT UNIFIÉ
+//  Structure en 4 parties numérotées (I/II/III/IV), inspirée de
+//  l'organisation standard des logiciels de dimensionnement PV
+//  professionnels : Bilan énergétique -> Prédimensionnement ->
+//  Dimensionnement -> Synoptique. Une seule structure de données
+//  sert à la fois à l'écran ET au PDF -> plus jamais de désynchro.
 // ================================================================
 
-// ----------------------------------------------------------------
-//  Construit la structure canonique du rapport à partir du résultat
-//  du moteur (r = calculDimensionnementComplet(...))
-// ----------------------------------------------------------------
 function construireSectionsRapport(r, contexte) {
-  // contexte = { nomModule, ville:{nom}, controleurType, marque:{nom, logoDataUrl} }
   var b = r.bilan;
   var kWc = ((r.NP * r.panneau.puissance) / 1000).toFixed(2);
   var sections = [];
 
+  // ===================== I. BILAN ÉNERGÉTIQUE =====================
   sections.push({
-    titre: '① Bilan des appareils (jour / nuit)',
+    titre: 'I. Bilan énergétique — Récepteurs classiques',
     type: 'tableau',
-    entetes: ['Appareil', 'Nb', 'PU (W)', 'Heures/j', 'Jour (Wh)', 'Nuit (Wh)', 'PT (W)', 'Énergie (Wh)'],
-    lignes: b.lignes.map(function (l) {
-      return [l.nom, l.nombre, l.pu, l.heures, l.E_jour.toFixed(0), l.E_nuit.toFixed(0), l.PT.toFixed(0), l.E.toFixed(0)];
+    entetes: ['Désignation', 'Qté', 'P.Unitaire [W]', 'Temps (h)', 'P.Réelle [W]', 'Énergie (Wh)'],
+    lignes: b.classiques.map(function (l) {
+      return [l.nom, l.nombre, l.pu, l.heures, l.PT.toFixed(1), l.E.toFixed(1)];
+    })
+  });
+
+  sections.push({
+    titre: 'I. Bilan énergétique — Récepteurs inductifs',
+    type: 'tableau',
+    entetes: ['Désignation', 'Qté', 'P.Unitaire [W]', 'Coef démarrage', 'Temps (h)', 'P.Réelle [W]', 'Énergie (Wh)'],
+    lignes: b.inductifs.map(function (l) {
+      return [l.nom, l.nombre, l.pu, '×' + l.coeff, l.heures, l.PT.toFixed(1), l.E.toFixed(1)];
     }),
-    totalRow: ['TOTAL', '', '', '', b.E_jour_total.toFixed(0), b.E_nuit_total.toFixed(0), b.PT_total.toFixed(0), b.E_total.toFixed(0)],
-    note: 'Ej = 1,2 × E = ' + r.Ej.toFixed(1) + ' Wh   ·   Pc = Ej ÷ (η ondu × η rég × RP × IR) = ' + r.Pc.toFixed(0) + ' Wc   ·   IR = ' + r.IR + ' kWh/m²/j'
+    note: 'P.Réelle = P.Unitaire × Coefficient de démarrage (pointe réelle à l\'allumage).'
   });
 
   sections.push({
-    titre: '② Classement des appareils',
+    titre: 'I. Bilan énergétique — Répartition Jour / Nuit',
     type: 'kv',
     lignes: [
-      ['Appareils classiques (coefficient 1)', (b.classiques.map(function (l) { return l.nom; }).join(', ') || '—')],
-      ['Appareils à démarrage inductif', (b.inductifs.map(function (l) { return l.nom + ' (×' + l.coeff + ')'; }).join(', ') || '—')]
+      ['Puissance max des équipements (pointe)', r.bilan.P_pointe_max.toFixed(1) + ' W (à ' + r.bilan.heure_pointe + 'h)'],
+      ['Énergie totale (Wh)', b.E_total.toFixed(1) + ' Wh'],
+      ['Dont énergie de jour (' + b.heureLever + 'h-' + b.heureCoucher + 'h)', b.E_jour_total.toFixed(1) + ' Wh'],
+      ['Dont énergie de nuit', b.E_nuit_total.toFixed(1) + ' Wh'],
+      ['Indice de stockage Is (nuit/total)', r.Is]
+    ]
+  });
+
+  // ===================== II. PRÉDIMENSIONNEMENT =====================
+  sections.push({
+    titre: 'II. Prédimensionnement — Paramètres',
+    type: 'kv',
+    compact: true,
+    lignes: [
+      ['Irradiation (kWh/m²/jr)', r.IR],
+      ['Ratio de performance système (RP)', '0,70'],
+      ['Énergie journalière Ej = 1,2 × E', r.Ej.toFixed(1) + ' Wh'],
+      ['Jours d\'autonomie', r.joursAuto]
     ]
   });
 
   sections.push({
-    titre: '③ Pointe de démarrage réelle',
+    titre: 'II. Prédimensionnement — Résultats',
     type: 'kv',
     lignes: [
-      ['Heure de pointe (le plus d\'appareils inductifs ensemble)', r.bilan.heure_pointe + 'h - ' + (r.bilan.heure_pointe + 1) + 'h'],
-      ['Puissance de pointe à cette heure', r.bilan.P_pointe_max.toFixed(0) + ' W'],
-      ['Puissance du convertisseur retenue (K × pointe)', r.Pconv.normalise + ' W']
-    ],
-    note: 'Le convertisseur est dimensionné sur la pointe réelle de démarrage simultané, pas sur la somme brute de tous les appareils.'
+      ['Puissance min. onduleur (W)', r.Pconv.brut.toFixed(1) + ' W'],
+      ['Puissance min. champ PV (Wc)', r.Pc.toFixed(1) + ' Wc'],
+      ['Énergie à stocker (30%×jour + nuit, +10%)', r.stockage.avecMarge.toFixed(1) + ' Wh'],
+      ['Capacité min. de stockage (Wh)', r.Cb_Wh_total.toFixed(1) + ' Wh']
+    ]
   });
 
+  // ===================== III. DIMENSIONNEMENT =====================
   sections.push({
-    titre: '④ Panneaux solaires sélectionnés',
+    titre: 'III. Dimensionnement — Choix des équipements',
     type: 'tableau',
-    entetes: ['Fabricant', 'Modèle', 'Puissance', 'VOC', 'Icc', 'Quantité'],
-    lignes: [[r.panneau.fabricant, r.panneau.modele, r.panneau.puissance + ' W', r.panneau.voc + ' V', r.panneau.icc + ' A', r.NP]],
-    note: 'Installé : ' + kWc + ' kWc  ·  Tension système : ' + r.Vsys + ' V  ·  Montage (séries longues privilégiées) : ' + r.Ns + ' séries × ' + r.N + ' parallèles' +
-      (r.ajusteNombrePremier ? '  ·  Nombre ajusté de ' + r.NP_calcule + ' (premier) à ' + r.NP + ' pour permettre un arrangement propre' : '')
-  });
-
-  sections.push({
-    titre: '④bis Onduleur sélectionné',
-    type: 'kv',
+    entetes: ['Composant', 'Modèle', 'Caractéristiques'],
     lignes: [
-      ['Modèle', r.onduleur ? (r.onduleur.fabricant + ' ' + r.onduleur.modele) : '—'],
-      ['Puissance nominale', r.onduleur ? r.onduleur.puissanceNominale + ' W' : '—'],
-      ['Compatibilité vérifiée', r.compatOnduleur ? (r.compatOnduleur.compatible ? '✅ Compatible' : '❌ ' + r.compatOnduleur.alertes.join(' · ')) : 'Non vérifiée']
+      ['Modules PV', r.panneau.fabricant + ' ' + r.panneau.modele, r.panneau.puissance + ' W · Voc ' + r.panneau.voc + 'V · Icc ' + r.panneau.icc + 'A'],
+      ['Batteries', r.batterie.type, r.batterie.capacite + ' Ah · ' + (r.TD * 100) + '% décharge'],
+      ['Onduleur', r.onduleur ? (r.onduleur.fabricant + ' ' + r.onduleur.modele) : '—', r.onduleur ? (r.onduleur.puissanceNominale + ' W') : '—']
     ]
   });
 
   sections.push({
-    titre: '⑤ Batteries sélectionnées (stockage optimisé)',
-    type: 'tableau',
-    entetes: ['Type', 'Capacité unitaire', 'Taux décharge', 'Quantité', 'Capacité totale'],
-    lignes: [[r.batterie.type, r.batterie.capacite + ' Ah', (r.TD * 100) + ' %', r.Nb, (r.Cb_Wh_total / 1000).toFixed(2) + ' kWh']],
-    note: 'Indice de stockage Is = ' + r.Is + ' (E_nuit/E_totale)  ·  Énergie à stocker = (30%×jour + nuit) × 1,10 = ' + r.stockage.avecMarge.toFixed(0) + ' Wh  ·  Autonomie ' + r.joursAuto + ' jour(s)  ·  ' +
-      (r.Nb < r.Nb_initial ? 'Optimisée : ' + r.Nb_initial + ' → ' + r.Nb + ' batteries (économie client, écart ≤10%)' : 'Aucune réduction possible sans dépasser 10% d\'écart')
+    titre: 'III. Dimensionnement — Configuration réelle du système',
+    type: 'kv',
+    lignes: [
+      ['Puissance champ PV', kWc + ' kWc (' + r.NP + ' panneaux)'],
+      ['Arrangement (Np × Ns)', r.N + ' × ' + r.Ns + (r.ajusteNombrePremier ? '  (ajusté depuis ' + r.NP_calcule + ' — nombre premier)' : '')],
+      ['Tension d\'une série', r.V_string + ' V'],
+      ['Tension du système', r.Vsys + ' V'],
+      ['Capacité parc batteries', r.Nb + ' × ' + r.batterie.capacite + ' Ah (' + (r.Cb_Wh_total / 1000).toFixed(2) + ' kWh)' +
+        (r.Nb < r.Nb_initial ? '  — optimisé de ' + r.Nb_initial + ' à ' + r.Nb : '')],
+      ['Puissance onduleur retenue', r.Pconv.normalise + ' W'],
+      ['Compatibilité onduleur', r.compatOnduleur ? (r.compatOnduleur.compatible ? '✅ Compatible' : '❌ ' + r.compatOnduleur.alertes.join(' · ')) : 'Non vérifiée']
+    ]
   });
 
   sections.push({
-    titre: '⑥ Énergie produite vs besoin',
+    titre: 'III. Dimensionnement — Énergie produite vs besoin',
     type: 'kv',
+    compact: true,
     lignes: [
       ['Besoin quotidien du client', (r.comparaison.E_besoin_Wh / 1000).toFixed(2) + ' kWh/j'],
       ['Production estimée des panneaux', (r.comparaison.E_produite_Wh / 1000).toFixed(2) + ' kWh/j'],
-      ['Taux de couverture', r.comparaison.tauxCouverture + ' %'],
-      ['Marge de sécurité (nuages, vieillissement panneaux)', r.comparaison.margeSecurite + ' %']
+      ['Taux de couverture', r.comparaison.tauxCouverture + ' %']
     ],
-    note: 'Une marge de 20 à 30% au-dessus du besoin est normale et recommandée (jours nuageux, dégradation ~0,5%/an des panneaux).',
-    compact: true
+    note: 'Une marge de 20 à 30% au-dessus du besoin est normale (nuages, vieillissement des panneaux).'
   });
 
+  // ===================== IV. SYNOPTIQUE =====================
   sections.push({
-    titre: '⑦ Sections de câble',
+    titre: 'IV. Synoptique — Sections de câble',
     type: 'tableau',
-    entetes: ['Tronçon', 'Longueur (max)', 'Intensité', 'Tension réf.', 'Calculé', 'Section retenue'],
+    entetes: ['Tronçon', 'Longueur', 'Intensité', 'Tension', 'Section retenue'],
     lignes: [
-      ['S1 — Panneaux → régulateur', r.L1 + ' m', r.I1 + ' A', r.V1 + ' V', r.S1.S_calc + ' mm²', r.S1.S_normalise + ' mm²'],
-      ['S2 — Batteries → régulateur', r.L2 + ' m', r.I2.toFixed(1) + ' A', r.V2 + ' V', r.S2.S_calc + ' mm²', r.S2.S_normalise + ' mm²'],
-      ['S3 — Convertisseur → sortie', r.L3 + ' m', r.I3.toFixed(1) + ' A', r.V3 + ' V', r.S3.S_calc + ' mm²', r.S3.S_normalise + ' mm²']
+      ['Champ PV → Onduleur', r.L1 + ' m', r.I1 + ' A', r.V1 + ' V', r.S1.S_normalise + ' mm²'],
+      ['Onduleur → Batterie', r.L2 + ' m', r.I2.toFixed(1) + ' A', r.V2 + ' V', r.S2.S_normalise + ' mm²'],
+      ['Onduleur → Charges', r.L3 + ' m', r.I3.toFixed(1) + ' A', r.V3 + ' V', r.S3.S_normalise + ' mm²']
     ]
   });
 
   sections.push({
-    titre: '⑧ Disjoncteurs / Protections',
+    titre: 'IV. Synoptique — Éléments de protection',
     type: 'tableau',
     entetes: ['Position', 'Tension nominale', 'Calibre'],
     lignes: [
-      ['D1 — Côté panneaux', r.D1.V + ' V', r.D1.I + ' A'],
-      ['D2 — Côté batteries', r.D2.V + ' V', r.D2.I + ' A'],
-      ['D3 — Côté sortie AC', r.D3.V + ' V', r.D3.I + ' A']
-    ],
-    note: 'Convertisseur : Pconv = ' + r.Pconv.normalise + ' W'
+      ['Disjoncteur DC — Champ PV', r.D1.V + ' V', r.D1.I + ' A'],
+      ['Disjoncteur DC — Batterie', r.D2.V + ' V', r.D2.I + ' A'],
+      ['Disjoncteur AC — Charges', r.D3.V + ' V', r.D3.I + ' A']
+    ]
   });
 
   sections.push({
@@ -121,7 +141,7 @@ function construireSectionsRapport(r, contexte) {
 }
 
 // ----------------------------------------------------------------
-//  RENDU ÉCRAN (HTML) à partir des sections
+//  RENDU ÉCRAN (HTML)
 // ----------------------------------------------------------------
 function rendreRapportHTML(sections, contexte) {
   var marque = contexte.marque || {};
@@ -141,7 +161,6 @@ function rendreRapportHTML(sections, contexte) {
       s.lignes.forEach(function (row) {
         html += '<tr>' + row.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
       });
-      if (s.totalRow) html += '<tr class="total-row">' + s.totalRow.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
       html += '</table>';
     } else if (s.type === 'kv') {
       html += '<table class="recap-table' + (s.compact ? ' compact-kv' : '') + '">';
@@ -160,8 +179,7 @@ function rendreRapportHTML(sections, contexte) {
 }
 
 // ----------------------------------------------------------------
-//  RENDU PDF — utilise jsPDF-AutoTable pour de VRAIS tableaux
-//  (corrige le bug "pas de tableau, pas de ligne, illisible")
+//  RENDU PDF — jsPDF-AutoTable, structure I/II/III/IV
 // ----------------------------------------------------------------
 function genererPDFDepuisSections(sections, contexte) {
   var jsPDF = window.jspdf.jsPDF;
@@ -171,7 +189,6 @@ function genererPDFDepuisSections(sections, contexte) {
   var qn = (contexte.prefixeRef || 'PEG') + '-' + Date.now();
   var y = 15;
 
-  // En-tête marque blanche
   try {
     var logo = marque.logoDataUrl;
     var format = 'JPEG';
@@ -183,26 +200,40 @@ function genererPDFDepuisSections(sections, contexte) {
   doc.setFontSize(15); doc.setFont(undefined, 'bold');
   doc.text(nomAffiche, 40, 18);
   doc.setFontSize(10); doc.setFont(undefined, 'normal');
-  doc.text('Rapport de dimensionnement solaire — Module ' + contexte.nomModule, 40, 24);
+  doc.text('SYSTÈME SOLAIRE PV — Rapport de dimensionnement — Module ' + contexte.nomModule, 40, 24);
   doc.setFontSize(9); doc.setTextColor(90);
   doc.text('N° ' + qn + '  ·  ' + new Date().toLocaleDateString('fr-FR') + (contexte.ville ? '  ·  ' + contexte.ville.nom : ''), 40, 30);
   doc.setTextColor(0);
   y = 38;
   doc.setDrawColor(21, 101, 192); doc.setLineWidth(0.5); doc.line(15, y, 195, y); y += 8;
 
+  var titrePrecedent = '';
   sections.forEach(function (s) {
+    // Détecte un changement de grande section (I./II./III./IV.) pour insérer un saut visuel
+    var racine = s.titre.split(' — ')[0];
+    if (racine !== titrePrecedent && /^(I|II|III|IV)\./.test(racine)) {
+      if (y > 250) { doc.addPage(); y = 18; }
+      y += 3;
+      doc.setFillColor(13, 34, 68);
+      doc.rect(15, y - 4, 180, 7, 'F');
+      doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(255);
+      doc.text(racine, 18, y + 1);
+      doc.setTextColor(0);
+      y += 8;
+      titrePrecedent = racine;
+    }
+
     if (y > 265) { doc.addPage(); y = 18; }
-    doc.setFontSize(11.5); doc.setFont(undefined, 'bold'); doc.setTextColor(13, 34, 68);
-    doc.text(s.titre, 15, y); y += 5;
+    var sousTitre = s.titre.indexOf(' — ') !== -1 ? s.titre.split(' — ')[1] : s.titre;
+    doc.setFontSize(10.5); doc.setFont(undefined, 'bold'); doc.setTextColor(21, 101, 192);
+    doc.text(sousTitre, 15, y); y += 5;
     doc.setTextColor(0);
 
     if (s.type === 'tableau') {
-      var body = s.lignes.slice();
-      if (s.totalRow) body.push(s.totalRow);
       doc.autoTable({
         startY: y,
         head: [s.entetes],
-        body: body,
+        body: s.lignes,
         theme: 'grid',
         styles: { fontSize: 8.5, cellPadding: 2 },
         headStyles: { fillColor: [13, 34, 68], textColor: 255, fontStyle: 'bold' },
@@ -238,13 +269,15 @@ function genererPDFDepuisSections(sections, contexte) {
     }
   });
 
-  // Image 3D
   var img3d = capturerScene3D('rapport-3d');
   if (img3d) {
     if (y > 190) { doc.addPage(); y = 18; }
-    doc.setFontSize(11.5); doc.setFont(undefined, 'bold'); doc.setTextColor(13, 34, 68);
-    doc.text('🏗️ Plan d\'implantation 3D', 15, y); y += 5;
+    doc.setFillColor(13, 34, 68);
+    doc.rect(15, y - 4, 180, 7, 'F');
+    doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(255);
+    doc.text('V. Synoptique et implantation 3D', 18, y + 1);
     doc.setTextColor(0);
+    y += 10;
     try { doc.addImage(img3d, 'PNG', 15, y, 180, 100); } catch (e) {}
   }
 
@@ -260,7 +293,7 @@ function genererPDFDepuisSections(sections, contexte) {
 }
 
 // ----------------------------------------------------------------
-//  Styles du rapport (fond blanc, texte compact pour la section ⑥)
+//  Styles
 // ----------------------------------------------------------------
 (function () {
   var s = document.createElement('style');
@@ -277,7 +310,6 @@ function genererPDFDepuisSections(sections, contexte) {
     .recap-table{width:100%;border-collapse:collapse;margin:6px 0;}
     .recap-table th,.recap-table td{border:1px solid #cfd8dc;padding:6px 9px;font-size:.82rem;text-align:left;}
     .recap-table th{background:#0d2244;color:#fff;}
-    .recap-table .total-row td{font-weight:700;background:#e3f2fd;}
     .recap-table.compact-kv td{font-size:.78rem;padding:5px 9px;}
     .ia-3d-bloc{background:#fff;border-left:4px solid #1565c0;padding:16px;}
     .scene3d-wrap{width:100%;border-radius:10px;overflow:hidden;min-height:480px;}
