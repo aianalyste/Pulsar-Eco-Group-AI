@@ -39,7 +39,7 @@ function construireSectionsRapport(r, contexte) {
       ['Puissance max des équipements (pointe)', r.bilan.P_pointe_max.toFixed(1) + ' W (à ' + r.bilan.heure_pointe + 'h)'],
       ['Énergie totale (Wh)', b.E_total.toFixed(1) + ' Wh'],
       ['Dont énergie de jour (' + b.heureLever + 'h-' + b.heureCoucher + 'h)', b.E_jour_total.toFixed(1) + ' Wh'],
-      ['Dont énergie de nuit', b.E_nuit_total.toFixed(1) + ' Wh'],
+      ['Dont énergie de nuit (' + (b.heureCoucher + 1) + 'h-' + (b.heureLever - 1) + 'h)', b.E_nuit_total.toFixed(1) + ' Wh'],
       ['Indice de stockage Is (nuit/total)', r.Is]
     ]
   });

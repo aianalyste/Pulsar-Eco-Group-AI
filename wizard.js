@@ -6,7 +6,7 @@
 var ETAT = {
   equipements: [],
   bilan: null, Ej: 0, Pc: 0, IR: 5.2,
-  heureLever: 6, heureCoucher: 17,
+  heureLever: C.JOUR_DEBUT, heureCoucher: C.JOUR_FIN,   // source unique : moteur.js
   panneauChoisi: null, NP: 0, Ns: 1, N: 1, Vsys: 48,
   controleurType: 'MPPT', VmaxMPPT: 150,
   onduleurChoisi: null,
@@ -16,6 +16,19 @@ var ETAT = {
   recommandation: null, choixManuel: { panneau: false, onduleur: false, batterie: false },
   projetId: null, projetNom: null
 };
+
+// Horaires jour/nuit : fixés par le système (C dans moteur.js). Les anciens champs HTML sont neutralisés
+// pour qu'aucune ancienne valeur (06h-18h / 19h-05h) ne puisse revenir par l'interface.
+function figerHorairesInterface() {
+  var l = document.getElementById('heure-lever'), c = document.getElementById('heure-coucher');
+  if (l) l.value = C.JOUR_DEBUT;
+  if (c) c.value = C.JOUR_FIN;
+  var zone = (l && l.closest('.w-inline-fields')) || (c && c.closest('.w-inline-fields'));
+  if (zone) {
+    zone.innerHTML = '<p class="w-hint">☀️ Jour : ' + C.JOUR_DEBUT + 'h – ' + C.JOUR_FIN + 'h &nbsp;·&nbsp; 🌙 Nuit : ' + (C.JOUR_FIN + 1) + 'h – ' + (C.JOUR_DEBUT - 1) + 'h (horaires fixés par le système)</p>';
+  }
+}
+figerHorairesInterface();
 
 if (typeof firebaseConfig !== 'undefined') initFirebase();
 if (firebaseEstConfigure()) {
@@ -100,6 +113,7 @@ function ouvrirProjet(projetId) {
   chargerProjet(projetId).then(function (p) {
     ETAT.projetId = p.id; ETAT.projetNom = p.nomProjet;
     Object.assign(ETAT, p.etatComplet.ETAT || {});
+    ETAT.heureLever = C.JOUR_DEBUT; ETAT.heureCoucher = C.JOUR_FIN;   // anciens projets : on ignore les horaires sauvegardés
     ouvrirWizard(p.typeModule, p.etatComplet.etape || 1);
   });
 }
@@ -164,12 +178,20 @@ function addRow() {
   var t = document.getElementById('equipmentTable');
   var r = t.insertRow();
   r.innerHTML =
-    '<td><input type="text" placeholder="Ex: Réfrigérateur" oninput="verifierEtape1()"></td>' +
+    '<td><input type="text" placeholder="Ex: Réfrigérateur" oninput="suggererTemps(this); verifierEtape1()"></td>' +
     '<td><input type="number" placeholder="150" min="0" oninput="verifierEtape1()"></td>' +
     '<td><input type="number" placeholder="1" min="1" oninput="verifierEtape1()"></td>' +
-    '<td><input type="number" placeholder="Ex: 5" min="1" max="24" oninput="verifierEtape1()"></td>' +
+    '<td><input type="number" placeholder="Ex: 5" min="1" max="24" oninput="this.removeAttribute(\'data-auto\'); verifierEtape1()"></td>' +
     '<td><button class="del-btn" type="button" onclick="deleteRow(this)">✕</button></td>';
   verifierEtape1();
+}
+// Pré-remplit le temps d'utilisation d'après le profil de l'appareil (sans écraser une saisie de l'utilisateur)
+function suggererTemps(champNom) {
+  var cellTemps = champNom.closest('tr').cells[3].children[0];
+  if (cellTemps.value && cellTemps.getAttribute('data-auto') !== '1') return;   // saisie manuelle : on ne touche pas
+  var d = dureeSuggereeAppareil(champNom.value);
+  if (d) { cellTemps.value = d; cellTemps.setAttribute('data-auto', '1'); }
+  else if (cellTemps.getAttribute('data-auto') === '1') { cellTemps.value = ''; cellTemps.removeAttribute('data-auto'); }
 }
 function deleteRow(btn) { btn.closest('tr').remove(); verifierEtape1(); }
 
@@ -225,18 +247,11 @@ function construireBande24h() {
   cont.innerHTML = '';
   ETAT.equipements = [];
 
-  var hl = parseInt(document.getElementById('heure-lever').value);
-  var hc = parseInt(document.getElementById('heure-coucher').value);
-  if (isNaN(hl)) hl = 6;
-  if (isNaN(hc)) hc = 17;
+  // Horaires : source unique C (moteur.js) — jamais lus depuis l'interface
+  var hl = C.JOUR_DEBUT, hc = C.JOUR_FIN;
   ETAT.heureLever = hl; ETAT.heureCoucher = hc;
-
-  // Bande Jour = hl à hc INCLUS ; Bande Nuit = le reste (hc+1 .. 23, 0 .. hl-1)
-  var heuresJour = [];
-  for (var h = hl; h <= hc; h++) heuresJour.push(h);
-  var heuresNuit = [];
-  for (var h2 = hc + 1; h2 < 24; h2++) heuresNuit.push(h2);
-  for (var h3 = 0; h3 < hl; h3++) heuresNuit.push(h3);
+  var heuresJour = heuresJourListe();
+  var heuresNuit = heuresNuitListe();
 
   for (var i = 1; i < t.rows.length; i++) {
     var c = t.rows[i].cells;
@@ -275,8 +290,11 @@ function construireBande24h() {
     cont.appendChild(bloc);
 
     // Profil horaire par défaut (modifiable) — voir PROFILS_HORAIRES dans moteur.js
-    var prop = proposerHeures(nom, tempsDeclare);
+    var prop = proposerProfil(nom, tempsDeclare);
     if (prop) {
+      var eqCourant = ETAT.equipements[idx];
+      eqCourant.profil = prop.profil; eqCourant.typeProfil = prop.type;
+      if (prop.force) { eqCourant.tempsDeclare = prop.temps; eqCourant.libre = true; }   // continu : 24 h, ajustable à la main
       var nCoches = 0;
       cont.querySelectorAll('input[data-idx="' + idx + '"]').forEach(function (cb) {
         var hh = parseInt(cb.getAttribute('data-h'));
@@ -285,8 +303,9 @@ function construireBande24h() {
       majCompteurHeures(idx);
       var note = document.createElement('p');
       note.className = 'w-hint';
-      note.textContent = '🕒 Profil par défaut « ' + prop.profil + ' » appliqué — vous pouvez le modifier (décochez puis cochez d\'autres heures).' +
-        (nCoches < tempsDeclare ? ' ' + nCoches + ' h pré-cochées sur ' + tempsDeclare + ' : complétez les heures manquantes.' : '');
+      note.textContent = '🕒 Profil « ' + prop.profil + ' » (' + prop.type + ') appliqué automatiquement — ' + prop.regle + ' Modifiable : cochez / décochez les heures.' +
+        (prop.force && tempsDeclare !== 24 ? ' Temps déclaré remplacé par 24 h (fonctionnement continu).' : '') +
+        (prop.partiel ? ' Profil plus court que le temps déclaré : complétez les heures manquantes.' : '');
       bloc.appendChild(note);
     }
   }
@@ -304,8 +323,9 @@ function majCompteurHeures(idx) {
   });
 
   var compteurEl = document.getElementById('compteur-' + idx);
-  var atteint = n >= eq.tempsDeclare;
-  compteurEl.textContent = n + ' / ' + eq.tempsDeclare + ' h déclarées';
+  if (eq.libre) eq.tempsDeclare = n;   // profil continu : le temps suit les cases (24 h par défaut, modifiable)
+  var atteint = !eq.libre && n >= eq.tempsDeclare;
+  compteurEl.textContent = eq.libre ? (n + ' h / 24 h (fonctionnement continu)') : (n + ' / ' + eq.tempsDeclare + ' h déclarées');
   compteurEl.style.color = atteint ? '#2e7d32' : '#1565c0';
 
   // VERROUILLAGE : dès que le total déclaré est atteint, les cases non cochées (jour ET nuit) se grisent

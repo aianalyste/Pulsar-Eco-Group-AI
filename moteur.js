@@ -15,9 +15,23 @@ var C = {
   MARGE_STOCKAGE: 0.10,
   PART_JOUR_STOCKAGE: 0.30,
   MARGE_OPTIMISATION: 0.10,
-  HEURE_LEVER_DEFAUT:   6,
+  // ===== SOURCE UNIQUE DES HORAIRES JOUR / NUIT (ne définir nulle part ailleurs) =====
+  // Une « case h » = le créneau h:00 → h+1:00.
+  // Jour = cases 6 à 17 ; Nuit = cases 18 à 23 puis 0 à 5. Aucun créneau n'est hors plage.
+  JOUR_DEBUT: 6,
+  JOUR_FIN:   17,
+  HEURE_LEVER_DEFAUT:   6,    // alias conservés pour compatibilité
   HEURE_COUCHER_DEFAUT: 17
 };
+
+function estHeureJour(h) { return h >= C.JOUR_DEBUT && h <= C.JOUR_FIN; }
+function heuresJourListe() { var a = []; for (var h = C.JOUR_DEBUT; h <= C.JOUR_FIN; h++) a.push(h); return a; }
+function heuresNuitListe() {
+  var a = [];
+  for (var h = C.JOUR_FIN + 1; h < 24; h++) a.push(h);
+  for (var h2 = 0; h2 < C.JOUR_DEBUT; h2++) a.push(h2);
+  return a;
+}
 
 var TD_BATTERIE = {
   "AGM":               0.50,
@@ -38,8 +52,8 @@ var TENSIONS_DISJONCTEUR  = [32, 48, 60, 150, 250, 300, 400, 500, 600, 1000];
 //  Nuit = le reste (ex: 18h-05h)
 // ================================================================
 function calculerBilanV10(equipements, heureLever, heureCoucher) {
-  heureLever   = (heureLever   === undefined) ? C.HEURE_LEVER_DEFAUT   : heureLever;
-  heureCoucher = (heureCoucher === undefined) ? C.HEURE_COUCHER_DEFAUT : heureCoucher;
+  // Les arguments sont ignorés : les horaires viennent uniquement de C.JOUR_DEBUT / C.JOUR_FIN
+  heureLever = C.JOUR_DEBUT; heureCoucher = C.JOUR_FIN;
 
   var lignes = [];
   var PT_total = 0, E_total = 0, E_jour_total = 0, E_nuit_total = 0;
@@ -56,7 +70,7 @@ function calculerBilanV10(equipements, heureLever, heureCoucher) {
     for (var h = 0; h < 24; h++) {
       if (!heuresActives[h]) continue;
       // Jour = heureLever à heureCoucher INCLUS (ex: 6h..17h)
-      var estJour = (h >= heureLever && h <= heureCoucher);
+      var estJour = estHeureJour(h);
       if (estJour) E_jour += PT; else E_nuit += PT;
     }
 
@@ -410,47 +424,131 @@ function recommanderEquipements(p) {
 }
 
 // ================================================================
-//  ÉTAPE 4 — PROFILS HORAIRES PAR DÉFAUT (centralisés, extensibles)
-//  mots : fragments (minuscules, sans accent) cherchés dans le nom de l'appareil.
-//  heures : ordre de PRÉFÉRENCE ; on prend les N premières (N = temps déclaré).
-//  Les cases restent modifiables à la main. Jour = 6-17, nuit = 18-5.
-//  Pour ajouter un appareil : ajouter une ligne ci-dessous.
+//  PROFILS HORAIRES PAR DÉFAUT — centralisés, extensibles
+//  type : 'continu' | 'diurne' | 'nocturne' | 'variable'
+//  heures : ordre de PRÉFÉRENCE (on prend les N premières, N = temps déclaré) ;
+//           'NUIT' = toutes les heures de nuit dans l'ordre (18h→5h), tiré de C.
+//  dureeDefaut : durée proposée à l'étape 1 si l'utilisateur n'a rien saisi.
+//  Un profil 'continu' = 24 h/24 (temps forcé à 24, modifiable ensuite à la main).
+//  Les profils ne dépendent PAS du découpage jour/nuit du dimensionnement.
+//  Pour ajouter un appareil : ajouter un profil (mots) ou une clé dans PROFIL_PAR_CLE_CATALOGUE.
 // ================================================================
-var PROFILS_HORAIRES = [
-  { nom: 'Fer à repasser',       mots: ['fer a repasser', 'repasser', 'fer electrique'], heures: [15, 16, 14, 17, 13, 12, 11, 10, 9, 8] },
-  { nom: 'Éclairage extérieur',  mots: ['exterieur', 'projecteur', 'lampadaire', 'eclairage ext'], heures: [19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5, 18] },
-  { nom: 'Télévision',           mots: ['television', 'tele', 'tv', 'ecran plat'], heures: [19, 20, 21, 22, 18, 23, 17, 16, 15] },
-  { nom: 'Réfrigérateur / congélateur', mots: ['refrigerateur', 'frigo', 'congelateur', 'frigidaire'], heures: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23] },
-  { nom: 'Ventilateur',          mots: ['ventilateur', 'brasseur'], heures: [13, 14, 15, 16, 12, 17, 11, 22, 23, 0, 1, 2] },
-  { nom: 'Pompe à eau',          mots: ['pompe'], heures: [9, 10, 11, 8, 12, 14, 15, 16, 7, 13, 17, 6] },
-  { nom: 'Climatiseur',          mots: ['climatiseur', 'clim'], heures: [13, 14, 15, 16, 12, 22, 23, 0, 1, 2, 3, 4, 17, 21, 20, 19, 18, 5] },
-  { nom: 'Éclairage intérieur',  mots: ['lampe', 'ampoule', 'eclairage', 'led'], heures: [19, 20, 21, 22, 18, 23, 5, 6] },
-  { nom: 'Ordinateur',           mots: ['ordinateur', 'laptop', 'pc portable'], heures: [8, 9, 10, 11, 14, 15, 16, 17, 12, 13] }
-];
+var TOUTES_HEURES = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+var HEURES_CHANTIER = [8, 9, 10, 11, 14, 15, 16, 17, 12, 13, 7];
+
+var PROFILS_HORAIRES = {
+  frigo:        { nom: 'Froid permanent (réfrigérateur / congélateur)', type: 'continu', heures: TOUTES_HEURES, dureeDefaut: 24,
+                  mots: ['refrigerateur', 'frigo', 'congelateur', 'frigidaire', 'chambre froide', 'vitrine refrigeree'], regle: 'Fonctionnement continu 24 h/24.' },
+  surveillance: { nom: 'Surveillance / réseau permanent', type: 'continu', heures: TOUTES_HEURES, dureeDefaut: 24,
+                  mots: ['camera', 'videosurveillance', 'surveillance', 'alarme', 'routeur', 'modem', 'box internet', 'detecteur'], regle: 'Équipement de sécurité ou de réseau toujours en service.' },
+  devanture:    { nom: 'Ampoule de devanture / enseigne', type: 'nocturne', heures: 'NUIT', dureeDefaut: 12,
+                  mots: ['devanture', 'enseigne', 'facade'], regle: 'Allumée toute la nuit : 18h → 5h.' },
+  exterieur:    { nom: 'Éclairage extérieur nocturne', type: 'nocturne', heures: 'NUIT', dureeDefaut: 12,
+                  mots: ['exterieur', 'projecteur', 'lampadaire', 'jardin', 'eclairage ext'], regle: 'Plage nocturne 18h → 5h.' },
+  fer:          { nom: 'Fer à repasser', type: 'variable', heures: [15, 16, 14, 17, 13, 12, 11, 10, 9, 8], dureeDefaut: 2,
+                  mots: ['fer a repasser', 'repasser', 'fer electrique'], regle: 'Journée / fin d\'après-midi, jamais la nuit.' },
+  tv:           { nom: 'Télévision / multimédia', type: 'variable', heures: [19, 20, 21, 22, 18, 23, 17, 16, 15], dureeDefaut: 4,
+                  mots: ['television', 'tele', 'tv', 'ecran plat', 'decodeur', 'hifi', 'radio'], regle: 'Soirée surtout ; autres heures possibles.' },
+  lampe:        { nom: 'Éclairage intérieur', type: 'variable', heures: [19, 20, 21, 22, 18, 23, 5, 6], dureeDefaut: 5,
+                  mots: ['lampe', 'ampoule', 'eclairage', 'led', 'lumiere', 'neon', 'halogene'], regle: 'Soir et petit matin ; dépend des habitudes.' },
+  ventilateur:  { nom: 'Ventilateur', type: 'variable', heures: [13, 14, 15, 16, 12, 17, 11, 22, 23, 0, 1, 2], dureeDefaut: 8,
+                  mots: ['ventilateur', 'brasseur'], regle: 'Heures chaudes puis début de nuit.' },
+  clim:         { nom: 'Climatisation / pompe à chaleur', type: 'variable', heures: [13, 14, 15, 16, 12, 22, 23, 0, 1, 2, 3, 4, 17, 21, 20, 19, 18, 5], dureeDefaut: 8,
+                  mots: ['climatiseur', 'clim', 'split', 'pompe a chaleur'], regle: 'Heures chaudes et nuit ; dépend des habitudes.' },
+  pompe:        { nom: 'Pompe à eau', type: 'variable', heures: [9, 10, 11, 8, 12, 14, 15, 16, 7, 13, 17, 6], dureeDefaut: 3,
+                  mots: ['pompe', 'forage', 'surpresseur'], regle: 'Pompage en journée (idéalement avec le soleil) ; à ajuster selon le réservoir et l\'installation.' },
+  bureau:       { nom: 'Ordinateur / bureautique', type: 'diurne', heures: [8, 9, 10, 11, 14, 15, 16, 17, 12, 13], dureeDefaut: 8,
+                  mots: ['ordinateur', 'laptop', 'pc portable', 'imprimante', 'photocopieur'], regle: 'Heures de travail.' },
+  cuisine:      { nom: 'Petit électroménager de cuisine', type: 'variable', heures: [7, 12, 19, 6, 13, 18, 8, 20], dureeDefaut: 2,
+                  mots: ['bouilloire', 'cafetiere', 'friteuse', 'micro-onde', 'micro onde', 'mixeur', 'blender', 'grille-pain'], regle: 'Repas : matin, midi, soir.' },
+  lessive:      { nom: 'Lessive (machine / sèche-linge)', type: 'diurne', heures: [9, 10, 11, 14, 15, 8, 12, 13, 16], dureeDefaut: 2,
+                  mots: ['machine a laver', 'lave-linge', 'seche-linge', 'seche linge'], regle: 'Journée.' },
+  chargeur:     { nom: 'Chargeur', type: 'variable', heures: [20, 21, 22, 23, 0, 1, 2, 3, 18, 19], dureeDefaut: 4,
+                  mots: ['chargeur', 'telephone', 'smartphone'], regle: 'Recharge en soirée / nuit.' },
+  chauffage:    { nom: 'Chauffage / chauffe-eau', type: 'variable', heures: [5, 6, 7, 18, 19, 20, 21, 22], dureeDefaut: 3,
+                  mots: ['chauffage', 'radiateur', 'chauffe-eau', 'chauffe eau', 'chaudiere'], regle: 'Matin et soir.' },
+  chantier:     { nom: 'Outil / machine de chantier', type: 'diurne', heures: HEURES_CHANTIER, dureeDefaut: 4,
+                  mots: [], regle: 'Heures de travail en journée.' }
+};
+
+// Ordre de test des mots-clés : du plus spécifique au plus général
+var ORDRE_PROFILS = ['devanture', 'exterieur', 'frigo', 'surveillance', 'fer', 'lessive', 'chargeur', 'clim', 'pompe', 'ventilateur',
+                     'cuisine', 'bureau', 'tv', 'chauffage', 'lampe'];
+
+// Catalogue d'appareils (COEFF_DEMARRAGE) -> profil : utilisé quand aucun mot-clé ne correspond
+var PROFIL_PAR_CLE_CATALOGUE = {
+  refrigerateur_vitrine_refrigeree: 'frigo', congelateur: 'frigo',
+  ventilateur: 'ventilateur', climatiseur: 'clim', pompe_a_chaleur_pac: 'clim',
+  pompe_d_alimentation: 'pompe', pompe_de_surface: 'pompe', pompe_immergee_relevage: 'pompe', pompe_a_piston_airless: 'chantier',
+  lumiere_a_incandescence: 'lampe', lumiere_halogene: 'lampe', lumiere_basse_consommation: 'lampe', lumiere_neon: 'lampe',
+  hifi_tv_ordinateur_imprimante_photocopieur: 'tv',
+  machine_a_laver_le_linge: 'lessive', seche_linge: 'lessive',
+  bouilloire: 'cuisine', cafetiere: 'cuisine', friteuse: 'cuisine', four_a_micro_ondes: 'cuisine',
+  chargeur_de_batterie: 'chargeur',
+  chauffage_radiateur: 'chauffage', chauffe_eau_electrique: 'chauffage', chaudiere_bois: 'chauffage', chaudiere_fioul: 'chauffage', chaudiere_gaz: 'chauffage',
+  aspirateur: 'lessive', aspirateur_professionnel: 'chantier',
+  ouverture_de_porte_de_garage: 'variable_libre', onduleur: 'variable_libre'
+};
+// Tous les autres appareils du catalogue (outillage, machines) -> 'chantier'
 
 function normaliserNomAppareil(n) {
   return String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-function trouverProfilHoraire(nom) {
-  var t = ' ' + normaliserNomAppareil(nom) + ' ';
-  // on teste d'abord les profils les plus spécifiques (ordre du tableau)
-  for (var i = 0; i < PROFILS_HORAIRES.length; i++) {
-    var pr = PROFILS_HORAIRES[i];
-    for (var j = 0; j < pr.mots.length; j++) {
-      var m = pr.mots[j];
-      var re = m.length <= 4 ? new RegExp('(^|[^a-z])' + m + '([^a-z]|$)') : null;
-      if (re ? re.test(t) : t.indexOf(m) !== -1) return pr;
-    }
+var MOTS_GENERIQUES = ['machine', 'moteur', 'electrique', 'charge', 'vide', 'chaleur'];   // trop vagues pour identifier un appareil
+
+// Retrouve la clé du catalogue COEFF_DEMARRAGE (même méthode de score que trouverCoeffDemarrage)
+function trouverCleCatalogue(nom) {
+  if (typeof COEFF_DEMARRAGE === 'undefined') return null;
+  var n = normaliserNomAppareil(nom), meilleure = null, score = 0;
+  for (var cle in COEFF_DEMARRAGE) {
+    var mots = normaliserNomAppareil(COEFF_DEMARRAGE[cle].nom).split(/[^a-z0-9]+/).filter(function (m) { return m.length >= 3; });
+    var sc = 0; mots.forEach(function (m) { if (MOTS_GENERIQUES.indexOf(m) === -1 && n.indexOf(m) !== -1) sc++; });
+    if (sc > score) { meilleure = cle; score = sc; }
   }
-  return null;
+  return meilleure;
 }
 
-// Retourne un tableau de 24 booléens, ou null si aucun profil
-function proposerHeures(nom, tempsDeclare) {
+function motPresent(texte, m) {
+  if (m.length <= 4) return new RegExp('(^|[^a-z])' + m.replace(/[-\s]/g, '[-\\s]?') + '([^a-z]|$)').test(texte);
+  return texte.indexOf(m) !== -1;
+}
+
+function trouverProfilHoraire(nom) {
+  var t = ' ' + normaliserNomAppareil(nom) + ' ';
+  for (var i = 0; i < ORDRE_PROFILS.length; i++) {
+    var pr = PROFILS_HORAIRES[ORDRE_PROFILS[i]];
+    for (var j = 0; j < pr.mots.length; j++) if (motPresent(t, pr.mots[j])) return pr;
+  }
+  var cle = trouverCleCatalogue(nom);
+  if (cle) {
+    var id = PROFIL_PAR_CLE_CATALOGUE[cle] || 'chantier';
+    if (id !== 'variable_libre') return PROFILS_HORAIRES[id];
+  }
+  return null;   // appareil inconnu : l'utilisateur choisit lui-même
+}
+
+function heuresDuProfil(pr) { return pr.heures === 'NUIT' ? heuresNuitListe() : pr.heures; }
+
+// Durée à pré-remplir à l'étape 1 (null si inconnu)
+function dureeSuggereeAppareil(nom) {
+  var pr = trouverProfilHoraire(nom);
+  return pr ? pr.dureeDefaut : null;
+}
+
+// Retourne null (inconnu) ou { profil, type, regle, heuresActives[24], temps, force, partiel }
+//  - continu : 24 h/24 TOUJOURS (le temps déclaré est remplacé par 24)
+//  - autres : N premières heures du profil (N = temps déclaré, sinon durée par défaut)
+function proposerProfil(nom, tempsDeclare) {
   var pr = trouverProfilHoraire(nom);
   if (!pr) return null;
   var a = new Array(24).fill(false);
-  pr.heures.slice(0, tempsDeclare).forEach(function (h) { a[h] = true; });
-  return { heuresActives: a, profil: pr.nom, complet: pr.heures.length >= tempsDeclare };
+  if (pr.type === 'continu') {
+    TOUTES_HEURES.forEach(function (h) { a[h] = true; });
+    return { profil: pr.nom, type: pr.type, regle: pr.regle, heuresActives: a, temps: 24, force: true, partiel: false };
+  }
+  var ordre = heuresDuProfil(pr);
+  var N = tempsDeclare > 0 ? tempsDeclare : pr.dureeDefaut;
+  ordre.slice(0, N).forEach(function (h) { a[h] = true; });
+  return { profil: pr.nom, type: pr.type, regle: pr.regle, heuresActives: a, temps: N, force: false, partiel: ordre.length < N };
 }
