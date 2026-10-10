@@ -85,7 +85,8 @@ function construireSectionsRapport(r, contexte) {
     type: 'kv',
     lignes: [
       ['Puissance champ PV', kWc + ' kWc (' + r.NP + ' panneaux)'],
-      ['Arrangement (Np × Ns)', r.N + ' × ' + r.Ns + (r.ajusteNombrePremier ? '  (ajusté depuis ' + r.NP_calcule + ' — nombre premier)' : '')],
+      ['Arrangement (Np × Ns)', r.N + ' en parallèle × ' + r.Ns + ' en série' + (r.ajusteNombrePremier ? '  (nombre ajusté de ' + r.NP_calcule + ' à ' + r.NP + ' pour des chaînes égales)' : '')],
+      ['Justification de l\'arrangement', (r.motifArrangement || '—') + ((r.avertissementsArrangement && r.avertissementsArrangement.length) ? ' ⚠ ' + r.avertissementsArrangement.join(' ') : '')],
       ['Tension d\'une série', r.V_string + ' V'],
       ['Tension du système', r.Vsys + ' V'],
       ['Capacité parc batteries', r.Nb + ' × ' + r.batterie.capacite + ' Ah (' + (r.Cb_Wh_total / 1000).toFixed(2) + ' kWh)' +

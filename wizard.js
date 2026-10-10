@@ -6,13 +6,14 @@
 var ETAT = {
   equipements: [],
   bilan: null, Ej: 0, Pc: 0, IR: 5.2,
-  heureLever: 6, heureCoucher: 18,
+  heureLever: 6, heureCoucher: 17,
   panneauChoisi: null, NP: 0, Ns: 1, N: 1, Vsys: 48,
   controleurType: 'MPPT', VmaxMPPT: 150,
   onduleurChoisi: null,
   batterieChoisie: null, Cb: 0, Nb: 0, joursAuto: 1,
   logoDataUrl: null, nomEntreprise: '',
   resultatFinal: null,
+  recommandation: null, choixManuel: { panneau: false, onduleur: false, batterie: false },
   projetId: null, projetNom: null
 };
 
@@ -216,7 +217,7 @@ function passageVersEtape2Valide() {
 }
 
 // ================================================================
-//  ÉTAPE 2 : DEUX BANDES SÉPARÉES — Jour (06h-18h) / Nuit (19h-05h)
+//  ÉTAPE 2 : DEUX BANDES SÉPARÉES — Jour (06h-17h) / Nuit (18h-05h)
 // ================================================================
 function construireBande24h() {
   var t = document.getElementById('equipmentTable');
@@ -227,7 +228,7 @@ function construireBande24h() {
   var hl = parseInt(document.getElementById('heure-lever').value);
   var hc = parseInt(document.getElementById('heure-coucher').value);
   if (isNaN(hl)) hl = 6;
-  if (isNaN(hc)) hc = 18;
+  if (isNaN(hc)) hc = 17;
   ETAT.heureLever = hl; ETAT.heureCoucher = hc;
 
   // Bande Jour = hl à hc INCLUS ; Bande Nuit = le reste (hc+1 .. 23, 0 .. hl-1)
@@ -272,6 +273,22 @@ function construireBande24h() {
       '</div>';
 
     cont.appendChild(bloc);
+
+    // Profil horaire par défaut (modifiable) — voir PROFILS_HORAIRES dans moteur.js
+    var prop = proposerHeures(nom, tempsDeclare);
+    if (prop) {
+      var nCoches = 0;
+      cont.querySelectorAll('input[data-idx="' + idx + '"]').forEach(function (cb) {
+        var hh = parseInt(cb.getAttribute('data-h'));
+        if (prop.heuresActives[hh]) { cb.checked = true; nCoches++; }
+      });
+      majCompteurHeures(idx);
+      var note = document.createElement('p');
+      note.className = 'w-hint';
+      note.textContent = '🕒 Profil par défaut « ' + prop.profil + ' » appliqué — vous pouvez le modifier (décochez puis cochez d\'autres heures).' +
+        (nCoches < tempsDeclare ? ' ' + nCoches + ' h pré-cochées sur ' + tempsDeclare + ' : complétez les heures manquantes.' : '');
+      bloc.appendChild(note);
+    }
   }
   document.getElementById('predim-resultats').innerHTML = '';
 }
@@ -329,42 +346,93 @@ function lancerPredimensionnement() {
   html += '<tr style="font-weight:700;background:#e3f2fd;"><td>TOTAL</td><td></td><td>' + b.E_jour_total.toFixed(0) + '</td><td>' + b.E_nuit_total.toFixed(0) + '</td><td>' + b.PT_total.toFixed(0) + '</td></tr></table>';
   html += '<table class="recap-table"><tr><td>Énergie journalière Ej</td><td><strong>' + ETAT.Ej.toFixed(1) + ' Wh</strong></td></tr>' +
     '<tr><td>Puissance crête Pc</td><td><strong>' + ETAT.Pc.toFixed(0) + ' Wc</strong></td></tr></table>';
+  html += lancerRecommandation();
   document.getElementById('predim-resultats').innerHTML = html;
   document.getElementById('nav-vers-3').style.display = 'flex';
   sauvegardeAuto();
 }
 
 // ================================================================
+//  ÉTAPE 3 (logique) : RECOMMANDATION AUTOMATIQUE après prédimensionnement
+//  Pré-sélectionne panneaux / onduleur / batteries sauf si l'utilisateur
+//  a déjà choisi lui-même (choixManuel). Tout reste modifiable.
+// ================================================================
+function lancerRecommandation() {
+  var reco = recommanderEquipements({
+    Pc: ETAT.Pc, bilan: ETAT.bilan, joursAutonomie: parseFloat((document.getElementById('jours-autonomie') || {}).value) || ETAT.joursAuto || 1,
+    panneaux: PANNEAUX_CATALOGUE, onduleurs: ONDULEURS_CATALOGUE, batteries: BATTERIES_CATALOGUE
+  });
+  ETAT.recommandation = {
+    panneauId: reco.panneau && reco.panneau.id, onduleurId: reco.onduleur && reco.onduleur.id, batterieId: reco.batterie && reco.batterie.id,
+    NP: reco.arrangement && reco.arrangement.NP_final, Nb: reco.Nb, justifications: reco.justifications, alertes: reco.alertes
+  };
+  if (!ETAT.choixManuel) ETAT.choixManuel = { panneau: false, onduleur: false, batterie: false };
+  if (reco.panneau && !ETAT.choixManuel.panneau) ETAT.panneauChoisi = reco.panneau;
+  if (reco.onduleur && !ETAT.choixManuel.onduleur) ETAT.onduleurChoisi = reco.onduleur;
+  if (reco.batterie && !ETAT.choixManuel.batterie) ETAT.batterieChoisie = reco.batterie;
+
+  var h = '<div class="w-alerte" style="background:#e8f5e9;border-color:#2e7d32;color:#1b5e20;"><strong>✨ Recommandation automatique</strong> (pré-sélectionnée, modifiable aux étapes suivantes)<ul>' +
+    reco.justifications.map(function (j) { return '<li>' + j + '</li>'; }).join('') + '</ul></div>';
+  if (reco.alertes.length) h += '<div class="w-alerte"><ul>' + reco.alertes.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
+  return h;
+}
+
+function estRecommande(categorie, id) {
+  var r = ETAT.recommandation;
+  if (!r) return false;
+  return (categorie === 'panneau' && r.panneauId === id) || (categorie === 'onduleur' && r.onduleurId === id) || (categorie === 'batterie' && r.batterieId === id);
+}
+function badgeReco(categorie, id) { return estRecommande(categorie, id) ? ' <span style="color:#2e7d32;font-weight:700;">★ Recommandé</span>' : ''; }
+
+// ================================================================
 //  ÉTAPE 3 : PANNEAUX (+ écran "+Nouveau" avec photo)
 // ================================================================
 function construireTableauPanneaux() {
   if (!ETAT.panneauChoisi) ETAT.panneauChoisi = PANNEAUX_CATALOGUE[0];
+  if (ETAT.recommandation && ETAT.recommandation.justifications.length) {
+    var jp = ETAT.recommandation.justifications.filter(function (j) { return j.indexOf('Panneau') === 0 || j.indexOf('Onduleur') === 0 && j.indexOf('panneau') > -1; });
+    var zr = document.getElementById('reco-panneaux');
+    if (!zr) { zr = document.createElement('div'); zr.id = 'reco-panneaux'; document.getElementById('tableau-panneaux').parentNode.insertBefore(zr, document.getElementById('tableau-panneaux')); }
+    zr.innerHTML = jp.length ? '<p class="w-hint">✨ ' + jp.join('<br>✨ ') + '</p>' : '';
+  }
   var html = '<table class="w-table"><tr><th></th><th>Fabricant</th><th>Modèle</th><th>Puissance</th><th>VOC</th><th>Icc</th><th>Source</th></tr>';
   PANNEAUX_CATALOGUE.forEach(function (p) {
     var checked = ETAT.panneauChoisi.id === p.id ? 'checked' : '';
-    html += '<tr class="' + (checked ? 'selected' : '') + '"><td><input type="radio" name="panneauChoix" ' + checked + ' onchange="ETAT.panneauChoisi=' + "PANNEAUX_CATALOGUE.find(x=>x.id==='" + p.id + "')" + '"></td>' +
-      '<td>' + p.fabricant + '</td><td>' + p.modele + '</td><td>' + p.puissance + ' W</td><td>' + p.voc + '</td><td>' + p.icc + '</td><td class="w-hint">' + p.source + '</td></tr>';
+    html += '<tr class="' + (checked ? 'selected' : '') + '"><td><input type="radio" name="panneauChoix" ' + checked + ' onchange="choisirPanneau(\'' + p.id + '\')"></td>' +
+      '<td>' + p.fabricant + badgeReco('panneau', p.id) + '</td><td>' + p.modele + '</td><td>' + p.puissance + ' W</td><td>' + p.voc + '</td><td>' + p.icc + '</td><td class="w-hint">' + p.source + '</td></tr>';
   });
   html += '</table>';
   document.getElementById('tableau-panneaux').innerHTML = html;
+  if (ETAT.Pc) calculerNbPanneauxUI(true);   // calcul automatique avec le choix pré-sélectionné
 }
 
-function calculerNbPanneauxUI() {
-  if (!ETAT.panneauChoisi) { alert('Sélectionnez un panneau.'); return; }
-  ETAT.VmaxMPPT = parseFloat(document.getElementById('vmax-mppt').value) || 150;
-  var opt = calculerNombrePanneauxOptimise(ETAT.Pc, ETAT.panneauChoisi.voc, ETAT.VmaxMPPT)(ETAT.panneauChoisi.puissance);
+function choisirPanneau(id) {
+  ETAT.panneauChoisi = PANNEAUX_CATALOGUE.find(function (x) { return x.id === id; });
+  ETAT.choixManuel.panneau = true;
+  if (ETAT.Pc) calculerNbPanneauxUI(true);
+}
+
+function calculerNbPanneauxUI(silencieux) {
+  if (!ETAT.panneauChoisi) { if (!silencieux) alert('Sélectionnez un panneau.'); return; }
+  var champ = parseFloat(document.getElementById('vmax-mppt').value) || 150;
+  ETAT.VmaxMPPT = champ;
+  var VocMax = limiteVocOnduleur(ETAT.onduleurChoisi, champ);
+  var opt = calculerNombrePanneauxOptimise(ETAT.Pc, ETAT.panneauChoisi.voc, VocMax, optionsMppt(ETAT.panneauChoisi, ETAT.onduleurChoisi))(ETAT.panneauChoisi.puissance);
   ETAT.NP = opt.NP_final; ETAT.Ns = opt.Ns; ETAT.N = opt.N; ETAT.V_string = opt.V_string;
   ETAT.Vsys = tensionSysteme(ETAT.Pc);
 
-  var noteAjust = opt.ajusteNombrePremier ? '<p class="w-alerte">ℹ️ ' + opt.NP_calcule + ' panneaux calculés est un nombre premier (non divisible) : ajusté à ' + opt.NP_final + ' pour permettre un arrangement série/parallèle propre.</p>' : '';
-  document.getElementById('resultat-panneaux').innerHTML = noteAjust +
+  var origine = (ETAT.onduleurChoisi && ETAT.onduleurChoisi.vocMax) ? 'Voc max de l\'onduleur ' + ETAT.onduleurChoisi.modele : 'tension max saisie ci-dessus';
+  var note = '<p class="w-hint">Règle : NP × Voc comparé à la ' + origine + ' (' + VocMax + ' V). ' + opt.motif + '</p>';
+  var avert = (opt.avertissements || []).map(function (a) { return '<p class="w-alerte">⚠️ ' + a + '</p>'; }).join('');
+  if (!opt.possible) avert = '<p class="w-alerte">❌ ' + opt.motif + (opt.avertissements && opt.avertissements[0] ? ' ' + opt.avertissements[0] : '') + '</p>';
+  document.getElementById('resultat-panneaux').innerHTML = note + avert +
     '<table class="recap-table">' +
-    '<tr><td>Nombre total de panneaux</td><td><strong>' + ETAT.NP + '</strong></td></tr>' +
-    '<tr><td>Arrangement (séries longues privilégiées)</td><td><strong>' + ETAT.Ns + ' séries × ' + ETAT.N + ' parallèles</strong></td></tr>' +
+    '<tr><td>Nombre total de panneaux</td><td><strong>' + ETAT.NP + '</strong>' + (opt.NP_final !== opt.NP_calcule ? ' (calculé : ' + opt.NP_calcule + ')' : '') + '</td></tr>' +
+    '<tr><td>Arrangement</td><td><strong>' + ETAT.Ns + ' en série × ' + ETAT.N + ' en parallèle</strong></td></tr>' +
     '<tr><td>Tension d\'une série</td><td><strong>' + ETAT.V_string + ' V</strong></td></tr>' +
     '<tr><td>Puissance installée</td><td><strong>' + ((ETAT.NP * ETAT.panneauChoisi.puissance) / 1000).toFixed(2) + ' kWc</strong></td></tr>' +
     '<tr><td>Tension du système</td><td><strong>' + ETAT.Vsys + ' V</strong></td></tr></table>';
-  document.getElementById('btn-vers-4').disabled = false;
+  document.getElementById('btn-vers-4').disabled = !opt.possible;
   sauvegardeAuto();
 }
 
@@ -402,7 +470,7 @@ function validerAjoutPanneau() {
   };
   if (!p.fabricant || !p.puissance || !p.voc) { alert('Renseignez au moins fabricant, puissance et Voc.'); return; }
   sauvegarderComposantPartage('panneaux', p, PANNEAUX_CATALOGUE, function (saved) {
-    ETAT.panneauChoisi = saved;
+    ETAT.panneauChoisi = saved; ETAT.choixManuel.panneau = true;
     fermerModal('modal-ajout-panneau');
     construireTableauPanneaux();
   });
@@ -417,7 +485,7 @@ function construireTableauOnduleurs() {
   ONDULEURS_CATALOGUE.forEach(function (o) {
     var checked = ETAT.onduleurChoisi.id === o.id ? 'checked' : '';
     html += '<tr class="' + (checked ? 'selected' : '') + '"><td><input type="radio" name="onduleurChoix" ' + checked + ' onchange="choisirOnduleur(\'' + o.id + '\')"></td>' +
-      '<td>' + o.fabricant + '</td><td>' + o.modele + '</td><td>' + o.puissanceNominale + ' W</td>' +
+      '<td>' + o.fabricant + badgeReco('onduleur', o.id) + '</td><td>' + o.modele + '</td><td>' + o.puissanceNominale + ' W</td>' +
       '<td>' + o.tensionBatMin + '-' + o.tensionBatMax + ' V</td><td>' + (o.vocMax || '—') + ' V</td><td>' + (o.mpptMin ? o.mpptMin + '-' + o.mpptMax + ' V' : '—') + '</td></tr>';
   });
   html += '</table>';
@@ -425,16 +493,27 @@ function construireTableauOnduleurs() {
   verifierCompatibiliteUI();
 }
 
-function choisirOnduleur(id) { ETAT.onduleurChoisi = ONDULEURS_CATALOGUE.find(function (o) { return o.id === id; }); verifierCompatibiliteUI(); }
+function choisirOnduleur(id) {
+  ETAT.onduleurChoisi = ONDULEURS_CATALOGUE.find(function (o) { return o.id === id; });
+  ETAT.choixManuel.onduleur = true;
+  if (ETAT.Pc && ETAT.panneauChoisi) calculerNbPanneauxUI(true);   // l'arrangement dépend de la tension de l'onduleur
+  verifierCompatibiliteUI();
+}
 
 function verifierCompatibiliteUI() {
   if (!ETAT.onduleurChoisi || !ETAT.NP) { document.getElementById('resultat-compat').innerHTML = ''; return; }
   var Pconv = calculerPuissanceConvertisseur(ETAT.bilan.P_pointe_max);
   var compat = verifierCompatibiliteOnduleur(ETAT.onduleurChoisi, ETAT.Vsys, ETAT.V_string, ETAT.N * ETAT.panneauChoisi.icc, Pconv.normalise);
+  var notesMppt = '';
+  var optArr = calculerNombrePanneauxOptimise(ETAT.Pc, ETAT.panneauChoisi.voc, limiteVocOnduleur(ETAT.onduleurChoisi, ETAT.VmaxMPPT), optionsMppt(ETAT.panneauChoisi, ETAT.onduleurChoisi))(ETAT.panneauChoisi.puissance);
+  (optArr.avertissements || []).forEach(function (a) {
+    if (a.indexOf('hors de la plage') > -1) { compat.alertes.push(a); compat.compatible = false; }
+    else notesMppt += '<p class="w-hint">ℹ️ ' + a + '</p>';
+  });
   var html = compat.compatible
     ? '<div class="w-alerte" style="background:#e8f5e9;border-color:#2e7d32;color:#1b5e20;">✅ Compatible avec vos panneaux et batteries.</div>'
     : '<div class="w-alerte">❌ Incompatibilité détectée :<ul>' + compat.alertes.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
-  document.getElementById('resultat-compat').innerHTML = html;
+  document.getElementById('resultat-compat').innerHTML = html + notesMppt;
   document.getElementById('btn-vers-5').disabled = !compat.compatible;
   sauvegardeAuto();
 }
@@ -468,7 +547,7 @@ function validerAjoutOnduleur() {
   };
   if (!o.fabricant || !o.puissanceNominale) { alert('Renseignez au moins fabricant et puissance nominale.'); return; }
   sauvegarderComposantPartage('onduleurs', o, ONDULEURS_CATALOGUE, function (saved) {
-    ETAT.onduleurChoisi = saved;
+    ETAT.onduleurChoisi = saved; ETAT.choixManuel.onduleur = true;
     fermerModal('modal-ajout-onduleur');
     construireTableauOnduleurs();
   });
@@ -483,12 +562,17 @@ function construireTableauBatteries() {
   BATTERIES_CATALOGUE.forEach(function (b) {
     var checked = ETAT.batterieChoisie.id === b.id ? 'checked' : '';
     html += '<tr class="' + (checked ? 'selected' : '') + '"><td><input type="radio" name="batterieChoix" ' + checked + ' onchange="choisirBatterie(\'' + b.id + '\')"></td>' +
-      '<td>' + b.fabricant + '</td><td>' + b.modele + '</td><td>' + b.type + '</td><td>' + b.tension + ' V</td><td>' + b.capaciteAh + ' Ah / ' + b.capaciteWh + ' Wh</td></tr>';
+      '<td>' + b.fabricant + badgeReco('batterie', b.id) + '</td><td>' + b.modele + '</td><td>' + b.type + '</td><td>' + b.tension + ' V</td><td>' + b.capaciteAh + ' Ah / ' + b.capaciteWh + ' Wh</td></tr>';
   });
   html += '</table>';
   document.getElementById('tableau-batteries').innerHTML = html;
+  if (ETAT.bilan) calculerNbBatteriesUI(true);   // calcul automatique avec le choix pré-sélectionné
 }
-function choisirBatterie(id) { ETAT.batterieChoisie = BATTERIES_CATALOGUE.find(function (b) { return b.id === id; }); }
+function choisirBatterie(id) {
+  ETAT.batterieChoisie = BATTERIES_CATALOGUE.find(function (b) { return b.id === id; });
+  ETAT.choixManuel.batterie = true;
+  if (ETAT.bilan) calculerNbBatteriesUI(true);
+}
 
 function ouvrirAjoutBatterie() {
   viderChamps(['nb-fabricant','nb-modele','nb-type','nb-tension','nb-ah','nb-wh']);
@@ -513,14 +597,14 @@ function validerAjoutBatterie() {
   };
   if (!b.fabricant || !b.tension || !b.capaciteAh) { alert('Renseignez au moins fabricant, tension et capacité.'); return; }
   sauvegarderComposantPartage('batteries', b, BATTERIES_CATALOGUE, function (saved) {
-    ETAT.batterieChoisie = saved;
+    ETAT.batterieChoisie = saved; ETAT.choixManuel.batterie = true;
     fermerModal('modal-ajout-batterie');
     construireTableauBatteries();
   });
 }
 
-function calculerNbBatteriesUI() {
-  if (!ETAT.batterieChoisie) { alert('Sélectionnez une batterie.'); return; }
+function calculerNbBatteriesUI(silencieux) {
+  if (!ETAT.batterieChoisie) { if (!silencieux) alert('Sélectionnez une batterie.'); return; }
   ETAT.joursAuto = parseFloat(document.getElementById('jours-autonomie').value) || 1;
 
   var stockage = calculerBesoinStockage(ETAT.bilan.E_jour_total, ETAT.bilan.E_nuit_total);

@@ -1,6 +1,6 @@
 // ================================================================
 //  PULSAR ECO GROUP — MOTEUR IA
-//  Bande horaire : Jour = 06h-18h (inclus) / Nuit = 19h-05h
+//  Bande horaire : Jour = 06h-17h (cases 6 à 17) / Nuit = 18h-05h (cases 18 à 23 puis 0 à 5)
 // ================================================================
 
 var C = {
@@ -16,7 +16,7 @@ var C = {
   PART_JOUR_STOCKAGE: 0.30,
   MARGE_OPTIMISATION: 0.10,
   HEURE_LEVER_DEFAUT:   6,
-  HEURE_COUCHER_DEFAUT: 18
+  HEURE_COUCHER_DEFAUT: 17
 };
 
 var TD_BATTERIE = {
@@ -34,8 +34,8 @@ var TENSIONS_DISJONCTEUR  = [32, 48, 60, 150, 250, 300, 400, 500, 600, 1000];
 // ================================================================
 //  BILAN ÉNERGÉTIQUE — jour / nuit + pointe de démarrage
 //  equipements = [{nom,pu,nombre,heuresActives[24]}]
-//  Jour = heureLever à heureCoucher INCLUS (ex: 06h-18h)
-//  Nuit = le reste (ex: 19h-05h)
+//  Jour = heureLever à heureCoucher INCLUS (ex: 06h-17h)
+//  Nuit = le reste (ex: 18h-05h)
 // ================================================================
 function calculerBilanV10(equipements, heureLever, heureCoucher) {
   heureLever   = (heureLever   === undefined) ? C.HEURE_LEVER_DEFAUT   : heureLever;
@@ -55,7 +55,7 @@ function calculerBilanV10(equipements, heureLever, heureCoucher) {
     var E_jour = 0, E_nuit = 0;
     for (var h = 0; h < 24; h++) {
       if (!heuresActives[h]) continue;
-      // Jour = heureLever à heureCoucher INCLUS (ex: 6h..18h)
+      // Jour = heureLever à heureCoucher INCLUS (ex: 6h..17h)
       var estJour = (h >= heureLever && h <= heureCoucher);
       if (estJour) E_jour += PT; else E_nuit += PT;
     }
@@ -98,29 +98,89 @@ function estPremier(n) {
   return true;
 }
 
-function factoriserPourSeriesLongues(n, Voc, VmaxMPPT) {
-  var meilleurNs = 1, meilleurN = n;
-  for (var d = 1; d <= n; d++) {
-    if (n % d !== 0) continue;
-    var Ns = d, N = n / d;
-    if (Ns * Voc <= VmaxMPPT && Ns >= meilleurNs) { meilleurNs = Ns; meilleurN = N; }
-  }
-  return { Ns: meilleurNs, N: meilleurN };
+// ================================================================
+//  ÉTAPE 2 — ARRANGEMENT SÉRIE / PARALLÈLE (règle du responsable)
+//  1) NP × Voc <= Voc max onduleur  -> UNE seule chaîne en série (NP peut être premier)
+//  2) sinon -> au moins 2 chaînes parallèles, avec le MÊME nombre de panneaux
+//     en série dans chaque chaîne (ex: 4 séries × 2 parallèles). NP ne peut alors
+//     pas être premier : on prend le plus petit NP' >= NP qui se divise ainsi.
+//  Vérification complémentaire : plage MPPT (Ns × Vmp) si les données existent.
+//  Retour : Ns = panneaux en série par chaîne ; N = nombre de chaînes en parallèle.
+// ================================================================
+function limiteVocOnduleur(onduleur, repli) {
+  if (onduleur && onduleur.vocMax) return onduleur.vocMax;
+  return repli || 150;
 }
 
-function calculerNombrePanneauxOptimise(Pc, Voc, VmaxMPPT) {
+function optionsMppt(panneau, onduleur) {
+  return { vmp: panneau && panneau.vmp, mpptMin: onduleur && onduleur.mpptMin, mpptMax: onduleur && onduleur.mpptMax };
+}
+
+function calculerArrangementPanneaux(NP0, Voc, VocMax, opts) {
+  opts = opts || {};
+  var vmp = opts.vmp, mpptMin = opts.mpptMin, mpptMax = opts.mpptMax;
+  if (NP0 < 1) NP0 = 1;
+  var avert = [];
+
+  if (!(Voc > 0) || !(VocMax > 0)) {
+    return { NP_final: NP0, Ns: NP0, N: 1, V_string: 0, ajuste: false, possible: false, avertissements: ['Voc du panneau ou Voc max de l\'onduleur manquant : arrangement non vérifiable.'], motif: 'Données manquantes.' };
+  }
+  if (Voc > VocMax) {
+    return { NP_final: NP0, Ns: 1, N: NP0, V_string: +Voc.toFixed(2), ajuste: false, possible: false, avertissements: ['Un seul panneau (Voc ' + Voc + ' V) dépasse déjà la tension max de l\'onduleur (' + VocMax + ' V).'], motif: 'Impossible avec cet onduleur.' };
+  }
+
+  function mpptOK(Ns) {
+    if (!(vmp > 0) || !(mpptMin > 0)) return null;     // inconnu
+    var v = Ns * vmp;
+    return v >= mpptMin && (!(mpptMax > 0) || v <= mpptMax);
+  }
+
+  var res = null;
+  if (NP0 * Voc <= VocMax) {
+    res = { NP_final: NP0, Ns: NP0, N: 1,
+      motif: NP0 + ' × ' + Voc + ' V = ' + (NP0 * Voc).toFixed(1) + ' V ≤ ' + VocMax + ' V (Voc max onduleur) : une seule chaîne en série suffit' +
+             (estPremier(NP0) && NP0 > 2 ? ' (nombre premier accepté).' : '.') };
+  } else {
+    for (var NP = NP0; NP <= NP0 + 60 && !res; NP++) {
+      var cands = [];
+      var NsMin = (Math.floor(VocMax / Voc) >= 2) ? 2 : 1;   // chaînes d'au moins 2 panneaux dès que la tension le permet
+      for (var Np = 2; Np <= NP; Np++) {
+        if (NP % Np !== 0) continue;
+        var Ns = NP / Np;
+        if (Ns >= NsMin && Ns * Voc <= VocMax) cands.push({ Ns: Ns, N: Np });
+      }
+      if (!cands.length) continue;
+      var choix = cands[0];                              // le moins de chaînes parallèles possible
+      for (var i = 0; i < cands.length; i++) { if (mpptOK(cands[i].Ns) === true) { choix = cands[i]; break; } }
+      res = { NP_final: NP, Ns: choix.Ns, N: choix.N,
+        motif: NP0 + ' × ' + Voc + ' V = ' + (NP0 * Voc).toFixed(1) + ' V > ' + VocMax + ' V (Voc max onduleur) : au moins 2 chaînes parallèles égales → ' +
+               choix.Ns + ' en série × ' + choix.N + ' en parallèle' + (NP !== NP0 ? ' (' + NP0 + ' ajusté à ' + NP + ' pour des chaînes égales)' : '') + '.' };
+    }
+    if (!res) {
+      return { NP_final: NP0, Ns: 1, N: NP0, V_string: +Voc.toFixed(2), ajuste: false, possible: false, avertissements: ['Aucun arrangement trouvé.'], motif: 'Aucun arrangement trouvé.' };
+    }
+  }
+
+  res.V_string = +(res.Ns * Voc).toFixed(2);
+  res.ajuste = res.NP_final !== NP0;
+  res.possible = true;
+  var m = mpptOK(res.Ns);
+  if (m === null) avert.push('Plage MPPT non vérifiée (Vmp du panneau ou MPPT min de l\'onduleur manquant).');
+  else if (m === false) avert.push('Tension MPPT de la chaîne (' + (res.Ns * vmp).toFixed(0) + ' V) hors de la plage MPPT de l\'onduleur (' + mpptMin + '-' + (mpptMax || '?') + ' V).');
+  res.avertissements = avert;
+  return res;
+}
+
+// Conserve l'ancien nom : utilisé par le wizard et calculDimensionnementComplet
+function calculerNombrePanneauxOptimise(Pc, Voc, VocMax, opts) {
   return function (Pu) {
     var NP = Math.ceil(Pc / Pu);
     if (NP < 1) NP = 1;
-    var ajuste = false;
-    if (estPremier(NP) && NP > 2) { NP = NP + 1; ajuste = true; }
-    var fp = factoriserPourSeriesLongues(NP, Voc, VmaxMPPT || 150);
+    var a = calculerArrangementPanneaux(NP, Voc, VocMax || 150, opts);
     return {
-      NP_calcule: Math.ceil(Pc / Pu),
-      NP_final: fp.Ns * fp.N,
-      ajusteNombrePremier: ajuste,
-      Ns: fp.Ns, N: fp.N,
-      V_string: +(fp.Ns * Voc).toFixed(2)
+      NP_calcule: NP, NP_final: a.NP_final, ajusteNombrePremier: a.ajuste,
+      Ns: a.Ns, N: a.N, V_string: a.V_string,
+      possible: a.possible, motif: a.motif, avertissements: a.avertissements
     };
   };
 }
@@ -201,7 +261,9 @@ function calculDimensionnementComplet(input) {
   var Ej = calculerEnergieJournaliere(bilan.E_total);
   var Pc = calculerPuissanceCrete(Ej, input.IR);
 
-  var optimNP = calculerNombrePanneauxOptimise(Pc, input.panneau.voc, input.Vmax_MPPT)(input.panneau.puissance);
+  var optsMppt = optionsMppt(input.panneau, input.onduleur);
+  var VocMax = limiteVocOnduleur(input.onduleur, input.Vmax_MPPT);
+  var optimNP = calculerNombrePanneauxOptimise(Pc, input.panneau.voc, VocMax, optsMppt)(input.panneau.puissance);
   var NP = optimNP.NP_final, Ns = optimNP.Ns, N = optimNP.N, V_string = optimNP.V_string;
   var Vsys = tensionSysteme(Pc);
 
@@ -242,6 +304,7 @@ function calculDimensionnementComplet(input) {
   return {
     bilan: bilan, Ej: Ej, Pc: Pc, IR: input.IR,
     NP: NP, NP_calcule: optimNP.NP_calcule, ajusteNombrePremier: optimNP.ajusteNombrePremier,
+    motifArrangement: optimNP.motif, avertissementsArrangement: optimNP.avertissements,
     Vsys: Vsys, Ns: Ns, N: N, V_string: V_string,
     panneau: input.panneau,
     Ic: Ic, Pconv: Pconv,
@@ -254,4 +317,140 @@ function calculDimensionnementComplet(input) {
     onduleur: input.onduleur || null, compatOnduleur: compatOnduleur,
     comparaison: { E_produite_Wh: E_produite_Wh, E_besoin_Wh: bilan.E_total, tauxCouverture: +taux.toFixed(0), margeSecurite: +(taux - 100).toFixed(0) }
   };
+}
+
+
+// ================================================================
+//  ÉTAPE 3 — RECOMMANDATION AUTOMATIQUE (panneaux, onduleur, batteries)
+//  Principe : éviter le surdimensionnement. Basée uniquement sur les règles
+//  déjà validées (Vsys, Pconv, arrangement série/parallèle, compatibilité
+//  onduleur, stockage + boucle d'optimisation des batteries).
+//  Retour : { panneau, onduleur, batterie, arrangement, Nb, justifications[], alertes[] }
+// ================================================================
+function recommanderEquipements(p) {
+  // p = { Pc, bilan, joursAutonomie, panneaux[], onduleurs[], batteries[] }
+  var res = { panneau: null, onduleur: null, batterie: null, arrangement: null, Nb: 0, justifications: [], alertes: [] };
+  var Vsys = tensionSysteme(p.Pc);
+  var Pconv = calculerPuissanceConvertisseur(p.bilan.P_pointe_max);
+  var jours = p.joursAutonomie || C.JOURS_AUTONOMIE_DEFAUT;
+  res.Vsys = Vsys; res.Pconv = Pconv;
+
+  // --- Onduleur + panneau (choisis ensemble car liés par la tension) ---
+  var onds = p.onduleurs.filter(function (o) {
+    return o.tensionBatMin !== undefined && Vsys >= o.tensionBatMin && Vsys <= o.tensionBatMax && o.puissanceNominale >= Pconv.normalise;
+  }).sort(function (a, b) { return (a.puissanceNominale - b.puissanceNominale) || ((b.vocMax || 0) - (a.vocMax || 0)); });
+  // Les onduleurs sans entrée PV (vocMax absent) ne conviennent que s'il n'y a rien d'autre
+  var avecPV = onds.filter(function (o) { return o.vocMax; });
+  if (avecPV.length) onds = avecPV;
+
+  var trouve = false;
+  for (var i = 0; i < onds.length && !trouve; i++) {
+    var o = onds[i], meilleur = null;
+    p.panneaux.forEach(function (pan) {
+      var opt = calculerNombrePanneauxOptimise(p.Pc, pan.voc, limiteVocOnduleur(o, 150), optionsMppt(pan, o))(pan.puissance);
+      if (!opt.possible) return;
+      var compat = verifierCompatibiliteOnduleur(o, Vsys, opt.V_string, opt.N * pan.icc, Pconv.normalise);
+      if (!compat.compatible) return;
+      var surplus = opt.NP_final * pan.puissance - p.Pc;
+      var cand = { pan: pan, opt: opt, surplus: surplus };
+      if (!meilleur || surplus < meilleur.surplus || (surplus === meilleur.surplus && opt.NP_final < meilleur.opt.NP_final)) meilleur = cand;
+    });
+    if (meilleur) {
+      trouve = true;
+      res.onduleur = o; res.panneau = meilleur.pan; res.arrangement = meilleur.opt;
+      res.justifications.push('Onduleur ' + o.fabricant + ' ' + o.modele + ' : le plus petit du catalogue qui accepte ' + Vsys + ' V de batterie et couvre ' + Pconv.normalise + ' W (' + o.puissanceNominale + ' W) — pas de surdimensionnement.');
+      res.justifications.push('Panneau ' + meilleur.pan.fabricant + ' ' + meilleur.pan.modele + ' (' + meilleur.pan.puissance + ' W) : ' + meilleur.opt.NP_final + ' panneaux = ' + (meilleur.opt.NP_final * meilleur.pan.puissance) + ' Wc pour ' + Math.ceil(p.Pc) + ' Wc requis (écart minimal du catalogue compatible). ' + meilleur.opt.motif);
+    }
+  }
+  if (!trouve && onds.length) {
+    // Repli : meilleure approximation (onduleur le plus petit adapté en tension batterie et puissance), avec alertes explicites
+    var o2 = onds[0], m2 = null;
+    p.panneaux.forEach(function (pan) {
+      var opt = calculerNombrePanneauxOptimise(p.Pc, pan.voc, limiteVocOnduleur(o2, 150), optionsMppt(pan, o2))(pan.puissance);
+      if (!opt.possible) return;
+      var sp = opt.NP_final * pan.puissance - p.Pc;
+      if (!m2 || sp < m2.sp) m2 = { pan: pan, opt: opt, sp: sp };
+    });
+    if (m2) {
+      trouve = true;
+      res.onduleur = o2; res.panneau = m2.pan; res.arrangement = m2.opt;
+      var cp = verifierCompatibiliteOnduleur(o2, Vsys, m2.opt.V_string, m2.opt.N * m2.pan.icc, Pconv.normalise);
+      res.justifications.push('Onduleur ' + o2.fabricant + ' ' + o2.modele + ' + panneau ' + m2.pan.fabricant + ' ' + m2.pan.modele + ' : meilleure approximation du catalogue (' + m2.opt.NP_final + ' panneaux, ' + m2.opt.Ns + ' en série × ' + m2.opt.N + ' en parallèle).');
+      cp.alertes.forEach(function (al) { res.alertes.push('Point d\'attention : ' + al); });
+      res.alertes.push('Aucune combinaison entièrement compatible dans le catalogue : choisissez un autre onduleur ou ajoutez-en un via « + Nouvel onduleur ».');
+    }
+  }
+  if (!trouve) res.alertes.push('Aucun onduleur du catalogue n\'accepte ' + Vsys + ' V de batterie avec ' + Pconv.normalise + ' W. Ajoutez un onduleur adapté via « + Nouvel onduleur ».');
+
+  // --- Batteries : montage en parallèle uniquement -> tension batterie = tension système ---
+  var stockage = calculerBesoinStockage(p.bilan.E_jour_total, p.bilan.E_nuit_total);
+  var besoin = stockage.avecMarge * jours;
+  var bats = p.batteries.filter(function (b) { return b.tension === Vsys; });
+  var best = null;
+  bats.forEach(function (b) {
+    var TD = TD_BATTERIE[b.type] || 0.8;
+    var Cb = calculerCapaciteBatterie(stockage.avecMarge, jours, Vsys, TD);
+    var Nb0 = calculerNombreBatteries(Cb, b.capaciteAh);
+    var opt = optimiserNombreBatteries(Nb0, b.capaciteAh, besoin, Vsys, TD);
+    var cap = opt.Nb_final * b.capaciteAh * C.ETA_ONDULEUR * C.ETA_BATTERIE * Vsys * TD;
+    var ecart = (cap - besoin) / besoin;
+    var cand = { b: b, Nb: opt.Nb_final, ecart: ecart, TD: TD };
+    var ok = ecart >= -C.MARGE_OPTIMISATION;
+    var meilleurOk = best && best.ecart >= -C.MARGE_OPTIMISATION;
+    if (!best || (ok && !meilleurOk) || (ok === meilleurOk && (Math.abs(ecart) < Math.abs(best.ecart) - 1e-9 ||
+        (Math.abs(Math.abs(ecart) - Math.abs(best.ecart)) <= 1e-9 && (cand.Nb < best.Nb || (cand.Nb === best.Nb && b.type === 'Lithium-LiFePO4' && best.b.type !== 'Lithium-LiFePO4')))))) best = cand;
+  });
+  if (best) {
+    res.batterie = best.b; res.Nb = best.Nb;
+    res.justifications.push('Batterie ' + best.b.fabricant + ' ' + best.b.modele + ' (' + best.b.type + ', ' + best.b.tension + ' V) : ' + best.Nb + ' unité(s) en parallèle pour ' + Math.round(besoin) + ' Wh à stocker, écart ' + (best.ecart * 100).toFixed(0) + ' % (limite −10 %), tension égale à celle du système.');
+  } else {
+    res.alertes.push('Aucune batterie de ' + Vsys + ' V dans le catalogue (montage en parallèle uniquement). Ajoutez-en une via « + Nouvelle batterie ».');
+  }
+  return res;
+}
+
+// ================================================================
+//  ÉTAPE 4 — PROFILS HORAIRES PAR DÉFAUT (centralisés, extensibles)
+//  mots : fragments (minuscules, sans accent) cherchés dans le nom de l'appareil.
+//  heures : ordre de PRÉFÉRENCE ; on prend les N premières (N = temps déclaré).
+//  Les cases restent modifiables à la main. Jour = 6-17, nuit = 18-5.
+//  Pour ajouter un appareil : ajouter une ligne ci-dessous.
+// ================================================================
+var PROFILS_HORAIRES = [
+  { nom: 'Fer à repasser',       mots: ['fer a repasser', 'repasser', 'fer electrique'], heures: [15, 16, 14, 17, 13, 12, 11, 10, 9, 8] },
+  { nom: 'Éclairage extérieur',  mots: ['exterieur', 'projecteur', 'lampadaire', 'eclairage ext'], heures: [19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5, 18] },
+  { nom: 'Télévision',           mots: ['television', 'tele', 'tv', 'ecran plat'], heures: [19, 20, 21, 22, 18, 23, 17, 16, 15] },
+  { nom: 'Réfrigérateur / congélateur', mots: ['refrigerateur', 'frigo', 'congelateur', 'frigidaire'], heures: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23] },
+  { nom: 'Ventilateur',          mots: ['ventilateur', 'brasseur'], heures: [13, 14, 15, 16, 12, 17, 11, 22, 23, 0, 1, 2] },
+  { nom: 'Pompe à eau',          mots: ['pompe'], heures: [9, 10, 11, 8, 12, 14, 15, 16, 7, 13, 17, 6] },
+  { nom: 'Climatiseur',          mots: ['climatiseur', 'clim'], heures: [13, 14, 15, 16, 12, 22, 23, 0, 1, 2, 3, 4, 17, 21, 20, 19, 18, 5] },
+  { nom: 'Éclairage intérieur',  mots: ['lampe', 'ampoule', 'eclairage', 'led'], heures: [19, 20, 21, 22, 18, 23, 5, 6] },
+  { nom: 'Ordinateur',           mots: ['ordinateur', 'laptop', 'pc portable'], heures: [8, 9, 10, 11, 14, 15, 16, 17, 12, 13] }
+];
+
+function normaliserNomAppareil(n) {
+  return String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function trouverProfilHoraire(nom) {
+  var t = ' ' + normaliserNomAppareil(nom) + ' ';
+  // on teste d'abord les profils les plus spécifiques (ordre du tableau)
+  for (var i = 0; i < PROFILS_HORAIRES.length; i++) {
+    var pr = PROFILS_HORAIRES[i];
+    for (var j = 0; j < pr.mots.length; j++) {
+      var m = pr.mots[j];
+      var re = m.length <= 4 ? new RegExp('(^|[^a-z])' + m + '([^a-z]|$)') : null;
+      if (re ? re.test(t) : t.indexOf(m) !== -1) return pr;
+    }
+  }
+  return null;
+}
+
+// Retourne un tableau de 24 booléens, ou null si aucun profil
+function proposerHeures(nom, tempsDeclare) {
+  var pr = trouverProfilHoraire(nom);
+  if (!pr) return null;
+  var a = new Array(24).fill(false);
+  pr.heures.slice(0, tempsDeclare).forEach(function (h) { a[h] = true; });
+  return { heuresActives: a, profil: pr.nom, complet: pr.heures.length >= tempsDeclare };
 }
